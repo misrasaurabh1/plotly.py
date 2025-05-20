@@ -117,12 +117,12 @@ def _compute_hexbin(x, y, x_range, y_range, color, nx, agg_func, min_count):
     # Center the hexagons vertically since we only want regular hexagons
     ymin -= (ymin + dy * ny - ymax) / 2
 
-    x = (x - xmin) / dx
-    y = (y - ymin) / dy
-    ix1 = np.round(x).astype(int)
-    iy1 = np.round(y).astype(int)
-    ix2 = np.floor(x).astype(int)
-    iy2 = np.floor(y).astype(int)
+    x_scaled = (x - xmin) / dx
+    y_scaled = (y - ymin) / dy
+    ix1 = np.round(x_scaled).astype(int)
+    iy1 = np.round(y_scaled).astype(int)
+    ix2 = np.floor(x_scaled).astype(int)
+    iy2 = np.floor(y_scaled).astype(int)
 
     nx1 = nx + 1
     ny1 = ny + 1
@@ -130,17 +130,19 @@ def _compute_hexbin(x, y, x_range, y_range, color, nx, agg_func, min_count):
     ny2 = ny
     n = nx1 * ny1 + nx2 * ny2
 
-    d1 = (x - ix1) ** 2 + 3.0 * (y - iy1) ** 2
-    d2 = (x - ix2 - 0.5) ** 2 + 3.0 * (y - iy2 - 0.5) ** 2
+    d1 = (x_scaled - ix1) ** 2 + 3.0 * (y_scaled - iy1) ** 2
+    d2 = (x_scaled - ix2 - 0.5) ** 2 + 3.0 * (y_scaled - iy2 - 0.5) ** 2
     bdist = d1 < d2
 
+    # Fast path: color is None, we just count points
     if color is None:
-        lattice1 = np.zeros((nx1, ny1))
-        lattice2 = np.zeros((nx2, ny2))
-        c1 = (0 <= ix1) & (ix1 < nx1) & (0 <= iy1) & (iy1 < ny1) & bdist
-        c2 = (0 <= ix2) & (ix2 < nx2) & (0 <= iy2) & (iy2 < ny2) & ~bdist
-        np.add.at(lattice1, (ix1[c1], iy1[c1]), 1)
-        np.add.at(lattice2, (ix2[c2], iy2[c2]), 1)
+        # Mask points into valid bins
+        mask1 = (0 <= ix1) & (ix1 < nx1) & (0 <= iy1) & (iy1 < ny1) & bdist
+        mask2 = (0 <= ix2) & (ix2 < nx2) & (0 <= iy2) & (iy2 < ny2) & ~bdist
+        lattice1 = np.bincount(ix1[mask1] * ny1 + iy1[mask1], minlength=nx1*ny1).astype(float)
+        lattice1 = lattice1.reshape((nx1, ny1))
+        lattice2 = np.bincount(ix2[mask2] * ny2 + iy2[mask2], minlength=nx2*ny2).astype(float)
+        lattice2 = lattice2.reshape((nx2, ny2))
         if min_count is not None:
             lattice1[lattice1 < min_count] = np.nan
             lattice2[lattice2 < min_count] = np.nan
@@ -150,42 +152,49 @@ def _compute_hexbin(x, y, x_range, y_range, color, nx, agg_func, min_count):
         if min_count is None:
             min_count = 1
 
-        # create accumulation arrays
-        lattice1 = np.empty((nx1, ny1), dtype=object)
-        for i in range(nx1):
-            for j in range(ny1):
-                lattice1[i, j] = []
-        lattice2 = np.empty((nx2, ny2), dtype=object)
-        for i in range(nx2):
-            for j in range(ny2):
-                lattice2[i, j] = []
+        # Vectorized bin mapping for both grids
+        bin_ind1 = ix1 * ny1 + iy1
+        bin_ind2 = ix2 * ny2 + iy2
 
-        for i in range(len(x)):
-            if bdist[i]:
-                if 0 <= ix1[i] < nx1 and 0 <= iy1[i] < ny1:
-                    lattice1[ix1[i], iy1[i]].append(color[i])
-            else:
-                if 0 <= ix2[i] < nx2 and 0 <= iy2[i] < ny2:
-                    lattice2[ix2[i], iy2[i]].append(color[i])
+        mask1 = (0 <= ix1) & (ix1 < nx1) & (0 <= iy1) & (iy1 < ny1) & bdist
+        mask2 = (0 <= ix2) & (ix2 < nx2) & (0 <= iy2) & (iy2 < ny2) & ~bdist
 
-        for i in range(nx1):
-            for j in range(ny1):
-                vals = lattice1[i, j]
-                if len(vals) >= min_count:
-                    lattice1[i, j] = agg_func(vals)
+        lattices = []
+        shapes = [(nx1, ny1), (nx2, ny2)]
+        bin_indices = [bin_ind1[mask1], bin_ind2[mask2]]
+        colorsel = [color[mask1], color[mask2]]
+        bin_counts = [nx1*ny1, nx2*ny2]
+        # If aggregator is numpy mean or sum, use ultra-fast vectorized reduction
+        # For custom agg_func we need to group by bin index
+        # Use numpy.unique for grouping if necessary
+        for inds, vals, gridshape, num_bins in zip(bin_indices, colorsel, shapes, bin_counts):
+            out = np.full(num_bins, np.nan, dtype=float)
+            if inds.size > 0:
+                # Find unique bin index and group values accordingly
+                uniq, inv, counts = np.unique(inds, return_inverse=True, return_counts=True)
+                if agg_func is np.mean:
+                    sums = np.bincount(inv, weights=vals)
+                    cnts = np.bincount(inv)
+                    result = np.divide(sums, cnts, where=cnts>0)
+                elif agg_func is np.sum:
+                    result = np.bincount(inv, weights=vals)
+                elif agg_func is np.size or agg_func is len:
+                    result = np.bincount(inv)
                 else:
-                    lattice1[i, j] = np.nan
-        for i in range(nx2):
-            for j in range(ny2):
-                vals = lattice2[i, j]
-                if len(vals) >= min_count:
-                    lattice2[i, j] = agg_func(vals)
-                else:
-                    lattice2[i, j] = np.nan
-
-        accum = np.hstack(
-            (lattice1.astype(float).ravel(), lattice2.astype(float).ravel())
-        )
+                    # Custom agg
+                    grouped = [[] for _ in range(len(uniq))]
+                    for pos, v in zip(inv, vals):
+                        grouped[pos].append(v)
+                    result = np.array([
+                        agg_func(g) if len(g) >= min_count else np.nan
+                        for g in grouped
+                    ], dtype=float)
+                # Apply min_count mask
+                if agg_func in (np.mean, np.sum, np.size, len):
+                    result[counts < min_count] = np.nan
+                out[uniq] = result
+            lattices.append(out.reshape(gridshape))
+        accum = np.concatenate([lattices[0].ravel(), lattices[1].ravel()])
         good_idxs = ~np.isnan(accum)
 
     agreggated_value = accum[good_idxs]
