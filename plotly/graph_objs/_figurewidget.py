@@ -21568,9 +21568,22 @@ class FigureWidget(BaseFigureWidget):
         self
             Returns the FigureWidget object that the method was called on
         """
-        for obj in self.select_coloraxes(selector=selector, row=row, col=col):
-            obj.update(patch, overwrite=overwrite, **kwargs)
+        # Optimization: Avoid recombining patch/kwargs each iteration
+        _patch = patch.copy() if patch else {}
+        if kwargs:
+            _patch.update(kwargs)
 
+        coloraxes_iter = self.select_coloraxes(selector=selector, row=row, col=col)
+        obj_update = type(next(coloraxes_iter, None))
+        # If generator is empty just return;
+        # localize for efficiency but have to re-create if not empty
+
+        if obj_update is not type(None):
+            # redo the generator; we took one element
+            coloraxes_iter = self.select_coloraxes(selector=selector, row=row, col=col)
+            update = obj_update.update
+            for obj in coloraxes_iter:
+                update(obj, _patch, overwrite=overwrite)
         return self
 
     def select_geos(self, selector=None, row=None, col=None):
