@@ -322,26 +322,41 @@ class _Distplot(object):
 
         :rtype (list) hist: list of histogram representations
         """
-        hist = [None] * self.trace_number
+        # Use local bindings for hot-spot fields
+        hist_data = self.hist_data
+        histnorm = self.histnorm
+        group_labels = self.group_labels
+        bin_size = self.bin_size
+        colors = self.colors
+        start = self.start
+        end = self.end
+        n_colors = len(colors)
+        trace_number = self.trace_number
 
-        for index in range(self.trace_number):
-            hist[index] = dict(
-                type="histogram",
-                x=self.hist_data[index],
-                xaxis="x1",
-                yaxis="y1",
-                histnorm=self.histnorm,
-                name=self.group_labels[index],
-                legendgroup=self.group_labels[index],
-                marker=dict(color=self.colors[index % len(self.colors)]),
-                autobinx=False,
-                xbins=dict(
-                    start=self.start[index],
-                    end=self.end[index],
-                    size=self.bin_size[index],
-                ),
-                opacity=0.7,
-            )
+        hist = []
+        append = hist.append  # local for speed
+
+        for i in range(trace_number):
+            color = colors[i % n_colors]
+            # use tuple unpack for fields
+            hdict = {
+                "type": "histogram",
+                "x": hist_data[i],
+                "xaxis": "x1",
+                "yaxis": "y1",
+                "histnorm": histnorm,
+                "name": group_labels[i],
+                "legendgroup": group_labels[i],
+                "marker": {"color": color},
+                "autobinx": False,
+                "xbins": {
+                    "start": start[i],
+                    "end": end[i],
+                    "size": bin_size[i],
+                },
+                "opacity": 0.7,
+            }
+            append(hdict)
         return hist
 
     def make_kde(self):
