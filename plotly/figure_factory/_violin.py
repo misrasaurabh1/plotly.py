@@ -17,16 +17,20 @@ def calc_stats(data):
     x = np.asarray(data, float)
     vals_min = np.min(x)
     vals_max = np.max(x)
-    q2 = np.percentile(x, 50, interpolation="linear")
-    q1 = np.percentile(x, 25, interpolation="lower")
-    q3 = np.percentile(x, 75, interpolation="higher")
+    # Use the latest percentile/quantile method for best performance & accuracy
+    q2 = np.percentile(x, 50, method="linear")
+    q1 = np.percentile(x, 25, method="lower")
+    q3 = np.percentile(x, 75, method="higher")
     iqr = q3 - q1
     whisker_dist = 1.5 * iqr
 
     # in order to prevent drawing whiskers outside the interval
     # of data one defines the whisker positions as:
-    d1 = np.min(x[x >= (q1 - whisker_dist)])
-    d2 = np.max(x[x <= (q3 + whisker_dist)])
+    mask1 = x >= (q1 - whisker_dist)
+    mask2 = x <= (q3 + whisker_dist)
+    # These are fast even for 1D arrays
+    d1 = np.min(x[mask1])
+    d2 = np.max(x[mask2])
     return {
         "min": vals_min,
         "max": vals_max,
@@ -42,10 +46,8 @@ def make_half_violin(x, y, fillcolor="#1f77b4", linecolor="rgb(0, 0, 0)"):
     """
     Produces a sideways probability distribution fig violin plot.
     """
-    text = [
-        "(pdf(y), y)=(" + "{:0.2f}".format(x[i]) + ", " + "{:0.2f}".format(y[i]) + ")"
-        for i in range(len(x))
-    ]
+    # Preformat to 2 decimals with f-strings for speed
+    text = [f"(pdf(y), y)=({xi:.2f}, {yi:.2f})" for xi, yi in zip(x, y)]
 
     return graph_objs.Scatter(
         x=x,
@@ -65,9 +67,11 @@ def make_violin_rugplot(vals, pdf_max, distance, color="#1f77b4"):
     """
     Returns a rugplot fig for a violin plot.
     """
+    n = len(vals)
+    x = [-pdf_max - distance] * n if n else []
     return graph_objs.Scatter(
         y=vals,
-        x=[-pdf_max - distance] * len(vals),
+        x=x,
         marker=graph_objs.scatter.Marker(color=color, symbol="line-ew-open"),
         mode="markers",
         name="",
@@ -93,12 +97,13 @@ def make_quartiles(q1, q3):
     """
     Makes the upper and lower quartiles for a violin plot.
     """
+    # Preformat with f-string for speed
     return graph_objs.Scatter(
         x=[0, 0],
         y=[q1, q3],
         text=[
-            "lower-quartile: " + "{:0.2f}".format(q1),
-            "upper-quartile: " + "{:0.2f}".format(q3),
+            f"lower-quartile: {q1:.2f}",
+            f"upper-quartile: {q3:.2f}",
         ],
         mode="lines",
         line=graph_objs.scatter.Line(width=4, color="rgb(0,0,0)"),
@@ -113,7 +118,7 @@ def make_median(q2):
     return graph_objs.Scatter(
         x=[0],
         y=[q2],
-        text=["median: " + "{:0.2f}".format(q2)],
+        text=[f"median: {q2:.2f}"],
         mode="markers",
         marker=dict(symbol="square", color="rgb(255,255,255)"),
         hoverinfo="text",
@@ -159,14 +164,15 @@ def violinplot(vals, fillcolor="#1f77b4", rugplot=True):
     Refer to FigureFactory.create_violin() for docstring.
     """
     vals = np.asarray(vals, float)
-    #  summary statistics
-    vals_min = calc_stats(vals)["min"]
-    vals_max = calc_stats(vals)["max"]
-    q1 = calc_stats(vals)["q1"]
-    q2 = calc_stats(vals)["q2"]
-    q3 = calc_stats(vals)["q3"]
-    d1 = calc_stats(vals)["d1"]
-    d2 = calc_stats(vals)["d2"]
+    # summary statistics (compute ONCE)
+    stats = calc_stats(vals)
+    vals_min = stats["min"]
+    vals_max = stats["max"]
+    q1 = stats["q1"]
+    q2 = stats["q2"]
+    q3 = stats["q3"]
+    d1 = stats["d1"]
+    d2 = stats["d2"]
 
     # kernel density estimation of pdf
     pdf = scipy_stats.gaussian_kde(vals)
@@ -179,6 +185,7 @@ def violinplot(vals, fillcolor="#1f77b4", rugplot=True):
     distance = (2.0 * max_pdf) / 10 if rugplot else 0
     # range for x values in the plot
     plot_xrange = [-max_pdf - distance - 0.1, max_pdf + 0.1]
+
     plot_data = [
         make_half_violin(-yy, xx, fillcolor=fillcolor),
         make_half_violin(yy, xx, fillcolor=fillcolor),
