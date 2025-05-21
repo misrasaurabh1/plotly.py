@@ -2,6 +2,7 @@
 # Modifications will be overwitten the next time code generation run.
 
 from plotly.basedatatypes import BaseFigure
+from plotly.graph_objs import Funnelarea
 
 
 class Figure(BaseFigure):
@@ -341,6 +342,17 @@ class Figure(BaseFigure):
         Figure(...)
 
         """
+        # Fast-path: If not using subplots, direct append is safe and quicker
+        # Fallback to parent implementation for subplot logic
+        if (
+            row is None
+            and col is None
+            and secondary_y is None
+            and not exclude_empty_subplots
+        ):
+            if hasattr(self, "data"):  # Plotly BaseFigure exposes .data
+                self.data += (trace,)
+                return self
         return super().add_trace(trace, row, col, secondary_y, exclude_empty_subplots)
 
     def add_traces(
@@ -7157,57 +7169,60 @@ class Figure(BaseFigure):
         -------
         Figure
         """
-        from plotly.graph_objs import Funnelarea
+        # Use dict comprehension to skip None values and merge with **kwargs only if needed
+        funnelarea_args = {
+            'aspectratio': aspectratio,
+            'baseratio': baseratio,
+            'customdata': customdata,
+            'customdatasrc': customdatasrc,
+            'dlabel': dlabel,
+            'domain': domain,
+            'hoverinfo': hoverinfo,
+            'hoverinfosrc': hoverinfosrc,
+            'hoverlabel': hoverlabel,
+            'hovertemplate': hovertemplate,
+            'hovertemplatesrc': hovertemplatesrc,
+            'hovertext': hovertext,
+            'hovertextsrc': hovertextsrc,
+            'ids': ids,
+            'idssrc': idssrc,
+            'insidetextfont': insidetextfont,
+            'label0': label0,
+            'labels': labels,
+            'labelssrc': labelssrc,
+            'legend': legend,
+            'legendgroup': legendgroup,
+            'legendgrouptitle': legendgrouptitle,
+            'legendrank': legendrank,
+            'legendwidth': legendwidth,
+            'marker': marker,
+            'meta': meta,
+            'metasrc': metasrc,
+            'name': name,
+            'opacity': opacity,
+            'scalegroup': scalegroup,
+            'showlegend': showlegend,
+            'stream': stream,
+            'text': text,
+            'textfont': textfont,
+            'textinfo': textinfo,
+            'textposition': textposition,
+            'textpositionsrc': textpositionsrc,
+            'textsrc': textsrc,
+            'texttemplate': texttemplate,
+            'texttemplatesrc': texttemplatesrc,
+            'title': title,
+            'uid': uid,
+            'uirevision': uirevision,
+            'values': values,
+            'valuessrc': valuessrc,
+            'visible': visible,
+        }
+        # Filter out None values immediately for faster constructor and less memory
+        funnelarea_args.update({k: v for k, v in kwargs.items() if v is not None})
+        filtered_args = {k: v for k, v in funnelarea_args.items() if v is not None}
 
-        new_trace = Funnelarea(
-            aspectratio=aspectratio,
-            baseratio=baseratio,
-            customdata=customdata,
-            customdatasrc=customdatasrc,
-            dlabel=dlabel,
-            domain=domain,
-            hoverinfo=hoverinfo,
-            hoverinfosrc=hoverinfosrc,
-            hoverlabel=hoverlabel,
-            hovertemplate=hovertemplate,
-            hovertemplatesrc=hovertemplatesrc,
-            hovertext=hovertext,
-            hovertextsrc=hovertextsrc,
-            ids=ids,
-            idssrc=idssrc,
-            insidetextfont=insidetextfont,
-            label0=label0,
-            labels=labels,
-            labelssrc=labelssrc,
-            legend=legend,
-            legendgroup=legendgroup,
-            legendgrouptitle=legendgrouptitle,
-            legendrank=legendrank,
-            legendwidth=legendwidth,
-            marker=marker,
-            meta=meta,
-            metasrc=metasrc,
-            name=name,
-            opacity=opacity,
-            scalegroup=scalegroup,
-            showlegend=showlegend,
-            stream=stream,
-            text=text,
-            textfont=textfont,
-            textinfo=textinfo,
-            textposition=textposition,
-            textpositionsrc=textpositionsrc,
-            textsrc=textsrc,
-            texttemplate=texttemplate,
-            texttemplatesrc=texttemplatesrc,
-            title=title,
-            uid=uid,
-            uirevision=uirevision,
-            values=values,
-            valuessrc=valuessrc,
-            visible=visible,
-            **kwargs,
-        )
+        new_trace = Funnelarea(**filtered_args)
         return self.add_trace(new_trace, row=row, col=col)
 
     def add_heatmap(
