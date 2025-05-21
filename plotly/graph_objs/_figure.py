@@ -2,6 +2,7 @@
 # Modifications will be overwitten the next time code generation run.
 
 from plotly.basedatatypes import BaseFigure
+from plotly.graph_objs import Bar
 
 
 class Figure(BaseFigure):
@@ -1137,85 +1138,23 @@ class Figure(BaseFigure):
         -------
         Figure
         """
-        from plotly.graph_objs import Bar
 
-        new_trace = Bar(
-            alignmentgroup=alignmentgroup,
-            base=base,
-            basesrc=basesrc,
-            cliponaxis=cliponaxis,
-            constraintext=constraintext,
-            customdata=customdata,
-            customdatasrc=customdatasrc,
-            dx=dx,
-            dy=dy,
-            error_x=error_x,
-            error_y=error_y,
-            hoverinfo=hoverinfo,
-            hoverinfosrc=hoverinfosrc,
-            hoverlabel=hoverlabel,
-            hovertemplate=hovertemplate,
-            hovertemplatesrc=hovertemplatesrc,
-            hovertext=hovertext,
-            hovertextsrc=hovertextsrc,
-            ids=ids,
-            idssrc=idssrc,
-            insidetextanchor=insidetextanchor,
-            insidetextfont=insidetextfont,
-            legend=legend,
-            legendgroup=legendgroup,
-            legendgrouptitle=legendgrouptitle,
-            legendrank=legendrank,
-            legendwidth=legendwidth,
-            marker=marker,
-            meta=meta,
-            metasrc=metasrc,
-            name=name,
-            offset=offset,
-            offsetgroup=offsetgroup,
-            offsetsrc=offsetsrc,
-            opacity=opacity,
-            orientation=orientation,
-            outsidetextfont=outsidetextfont,
-            selected=selected,
-            selectedpoints=selectedpoints,
-            showlegend=showlegend,
-            stream=stream,
-            text=text,
-            textangle=textangle,
-            textfont=textfont,
-            textposition=textposition,
-            textpositionsrc=textpositionsrc,
-            textsrc=textsrc,
-            texttemplate=texttemplate,
-            texttemplatesrc=texttemplatesrc,
-            uid=uid,
-            uirevision=uirevision,
-            unselected=unselected,
-            visible=visible,
-            width=width,
-            widthsrc=widthsrc,
-            x=x,
-            x0=x0,
-            xaxis=xaxis,
-            xcalendar=xcalendar,
-            xhoverformat=xhoverformat,
-            xperiod=xperiod,
-            xperiod0=xperiod0,
-            xperiodalignment=xperiodalignment,
-            xsrc=xsrc,
-            y=y,
-            y0=y0,
-            yaxis=yaxis,
-            ycalendar=ycalendar,
-            yhoverformat=yhoverformat,
-            yperiod=yperiod,
-            yperiod0=yperiod0,
-            yperiodalignment=yperiodalignment,
-            ysrc=ysrc,
-            zorder=zorder,
-            **kwargs,
-        )
+        # Optimization: collect non-None arguments only
+        bar_args = {}
+        local_vars = locals()
+        # The following are special and not constructor args
+        skip_keys = {'self', 'row', 'col', 'secondary_y', 'kwargs'}
+
+        for k, v in local_vars.items():
+            # Only keep keys not in skip_keys and not None
+            if k not in skip_keys and v is not None:
+                bar_args[k] = v
+
+        # Add any additional kwargs passed
+        if kwargs:
+            bar_args.update(kwargs)
+
+        new_trace = Bar(**bar_args)
         return self.add_trace(new_trace, row=row, col=col, secondary_y=secondary_y)
 
     def add_barpolar(
