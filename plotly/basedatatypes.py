@@ -1,27 +1,20 @@
 import collections
-from collections import OrderedDict
+import itertools
 import re
 import warnings
+from collections import OrderedDict
 from contextlib import contextmanager
-from copy import deepcopy, copy
-import itertools
+from copy import copy, deepcopy
 from functools import reduce
 
-from _plotly_utils.utils import (
-    _natural_sort_strings,
-    _get_int_type,
-    split_multichar,
-    split_string_positions,
-    display_string_positions,
-    chomp_empty_strings,
-    find_closest_string,
-    convert_to_base64,
-)
 from _plotly_utils.exceptions import PlotlyKeyError
-from .optional_imports import get_module
+from _plotly_utils.utils import (_get_int_type, _natural_sort_strings,
+                                 chomp_empty_strings, convert_to_base64,
+                                 display_string_positions, find_closest_string,
+                                 split_multichar, split_string_positions)
 
-from . import shapeannotation
-from . import _subplots
+from . import _subplots, shapeannotation
+from .optional_imports import get_module
 
 # Create Undefined sentinel value
 #   - Setting a property to None removes any existing value
@@ -468,7 +461,7 @@ class BaseFigure(object):
             if a property in the specification of data, layout, or frames
             is invalid AND skip_invalid is False
         """
-        from .validators import DataValidator, LayoutValidator, FramesValidator
+        from .validators import DataValidator, FramesValidator, LayoutValidator
 
         super(BaseFigure, self).__init__()
 
@@ -1419,48 +1412,43 @@ class BaseFigure(object):
         """
         Helper called by code generated select_* methods
         """
-
-        if row is not None or col is not None or secondary_y is not None:
-            # Build mapping from container keys ('xaxis2', 'scene4', etc.)
-            # to (row, col, secondary_y) triplets
+        layout = self.layout  # avoid attribute lookup in loop
+        layout_keys = layout.keys() if hasattr(layout, "keys") else layout
+        # Fast-path: if all subplots included
+        if row is None and col is None and secondary_y is None:
+            # Filter just layout keys with this prefix and value not None
+            keys = [k for k in layout_keys if k.startswith(prefix) and layout[k] is not None]
+        else:
+            # Only build the mapping if actually needed
             grid_ref = self._validate_get_grid_ref()
             container_to_row_col = {}
             for r, subplot_row in enumerate(grid_ref):
                 for c, subplot_refs in enumerate(subplot_row):
                     if not subplot_refs:
                         continue
-
-                    # collect primary keys
                     for i, subplot_ref in enumerate(subplot_refs):
                         for layout_key in subplot_ref.layout_keys:
                             if layout_key.startswith(prefix):
                                 is_secondary_y = i == 1
-                                container_to_row_col[layout_key] = (
-                                    r + 1,
-                                    c + 1,
-                                    is_secondary_y,
-                                )
-        else:
-            container_to_row_col = None
+                                container_to_row_col[layout_key] = (r+1, c+1, is_secondary_y)
 
-        layout_keys_filters = [
-            lambda k: k.startswith(prefix) and self.layout[k] is not None,
-            lambda k: row is None
-            or container_to_row_col.get(k, (None, None, None))[0] == row,
-            lambda k: col is None
-            or container_to_row_col.get(k, (None, None, None))[1] == col,
-            lambda k: (
-                secondary_y is None
-                or container_to_row_col.get(k, (None, None, None))[2] == secondary_y
-            ),
-        ]
-        layout_keys = reduce(
-            lambda last, f: filter(f, last),
-            layout_keys_filters,
-            # Natural sort keys so that xaxis20 is after xaxis3
-            _natural_sort_strings(list(self.layout)),
-        )
-        layout_objs = [self.layout[k] for k in layout_keys]
+            # Merge row/col checks for speed
+            def passes(k):
+                if not k.startswith(prefix) or layout[k] is None:
+                    return False
+                rr, cc, sec = container_to_row_col.get(k, (None, None, None))
+                if row is not None and rr != row: return False
+                if col is not None and cc != col: return False
+                if secondary_y is not None and sec != secondary_y: return False
+                return True
+
+            keys = [k for k in layout_keys if passes(k)]
+
+        # Only now do a natural sort (on a small set)
+        sorted_keys = _natural_sort_strings(keys)
+        # Use generator to avoid list creation up front if result is large
+        layout_objs = (layout[k] for k in sorted_keys)
+        # _filter_by_selector must be supplied in user codebase; pass args accordingly
         return _generator(self._filter_by_selector(layout_objs, [], selector))
 
     def _select_annotations_like(
@@ -3791,14 +3779,11 @@ Invalid property path '{key_path_str}' for layout
             The image data
         """
         import plotly.io as pio
-        from plotly.io.kaleido import (
-            kaleido_available,
-            kaleido_major,
-            ENABLE_KALEIDO_V0_DEPRECATION_WARNINGS,
-            KALEIDO_DEPRECATION_MSG,
-            ORCA_DEPRECATION_MSG,
-            ENGINE_PARAM_DEPRECATION_MSG,
-        )
+        from plotly.io.kaleido import (ENABLE_KALEIDO_V0_DEPRECATION_WARNINGS,
+                                       ENGINE_PARAM_DEPRECATION_MSG,
+                                       KALEIDO_DEPRECATION_MSG,
+                                       ORCA_DEPRECATION_MSG, kaleido_available,
+                                       kaleido_major)
 
         if ENABLE_KALEIDO_V0_DEPRECATION_WARNINGS:
             if (
@@ -3886,14 +3871,11 @@ Invalid property path '{key_path_str}' for layout
         None
         """
         import plotly.io as pio
-        from plotly.io.kaleido import (
-            kaleido_available,
-            kaleido_major,
-            ENABLE_KALEIDO_V0_DEPRECATION_WARNINGS,
-            KALEIDO_DEPRECATION_MSG,
-            ORCA_DEPRECATION_MSG,
-            ENGINE_PARAM_DEPRECATION_MSG,
-        )
+        from plotly.io.kaleido import (ENABLE_KALEIDO_V0_DEPRECATION_WARNINGS,
+                                       ENGINE_PARAM_DEPRECATION_MSG,
+                                       KALEIDO_DEPRECATION_MSG,
+                                       ORCA_DEPRECATION_MSG, kaleido_available,
+                                       kaleido_major)
 
         if ENABLE_KALEIDO_V0_DEPRECATION_WARNINGS:
             if (
@@ -3937,10 +3919,8 @@ Invalid property path '{key_path_str}' for layout
             :class:`BasePlotlyType`, ``update_obj`` should be a tuple or list
             of dicts
         """
-        from _plotly_utils.basevalidators import (
-            CompoundValidator,
-            CompoundArrayValidator,
-        )
+        from _plotly_utils.basevalidators import (CompoundArrayValidator,
+                                                  CompoundValidator)
 
         if update_obj is None:
             # Nothing to do
@@ -4540,9 +4520,7 @@ class BasePlotlyType(object):
             # ### Child a compound property ###
             if child.plotly_name in self:
                 from _plotly_utils.basevalidators import (
-                    CompoundValidator,
-                    CompoundArrayValidator,
-                )
+                    CompoundArrayValidator, CompoundValidator)
 
                 validator = self._get_validator(child.plotly_name)
 
@@ -4769,11 +4747,9 @@ class BasePlotlyType(object):
         -------
         Any
         """
-        from _plotly_utils.basevalidators import (
-            CompoundValidator,
-            CompoundArrayValidator,
-            BaseDataValidator,
-        )
+        from _plotly_utils.basevalidators import (BaseDataValidator,
+                                                  CompoundArrayValidator,
+                                                  CompoundValidator)
 
         # Normalize prop
         # --------------
@@ -4902,11 +4878,9 @@ class BasePlotlyType(object):
         -------
         None
         """
-        from _plotly_utils.basevalidators import (
-            CompoundValidator,
-            CompoundArrayValidator,
-            BaseDataValidator,
-        )
+        from _plotly_utils.basevalidators import (BaseDataValidator,
+                                                  CompoundArrayValidator,
+                                                  CompoundValidator)
 
         # Normalize prop
         # --------------
