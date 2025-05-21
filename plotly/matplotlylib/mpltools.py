@@ -213,11 +213,12 @@ def convert_y_domain(mpl_plot_bounds, mpl_max_y_bounds):
     ** these are all specified in mpl figure coordinates
 
     """
-    mpl_y_dom = [mpl_plot_bounds[1], mpl_plot_bounds[1] + mpl_plot_bounds[3]]
-    plotting_height = mpl_max_y_bounds[1] - mpl_max_y_bounds[0]
-    y0 = (mpl_y_dom[0] - mpl_max_y_bounds[0]) / plotting_height
-    y1 = (mpl_y_dom[1] - mpl_max_y_bounds[0]) / plotting_height
-    return [y0, y1]
+    y0_plot = mpl_plot_bounds[1]
+    y1_plot = y0_plot + mpl_plot_bounds[3]
+    y0_max = mpl_max_y_bounds[0]
+    plot_height = mpl_max_y_bounds[1] - y0_max
+    # Avoid temporary lists; use inline calculation
+    return [(y0_plot - y0_max) / plot_height, (y1_plot - y0_max) / plot_height]
 
 
 def display_to_paper(x, y, layout):
