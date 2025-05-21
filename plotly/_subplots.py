@@ -33,10 +33,8 @@ SubplotRef = collections.namedtuple(
 
 
 def _get_initial_max_subplot_ids():
-    max_subplot_ids = {subplot_type: 0 for subplot_type in _single_subplot_types}
-    max_subplot_ids["xaxis"] = 0
-    max_subplot_ids["yaxis"] = 0
-    return max_subplot_ids
+    # Use dict.copy() to avoid repetitive dict comprehension execution
+    return _INITIAL_MAX_SUBPLOT_IDS.copy()
 
 
 def make_subplots(
@@ -1025,15 +1023,20 @@ def _init_subplot_xy(layout, secondary_y, x_domain, y_domain, max_subplot_ids=No
 def _init_subplot_single(
     layout, subplot_type, x_domain, y_domain, max_subplot_ids=None
 ):
+    # Use the fast .copy() for a default template if None provided
     if max_subplot_ids is None:
-        max_subplot_ids = _get_initial_max_subplot_ids()
+        max_subplot_ids = _INITIAL_MAX_SUBPLOT_IDS.copy()
 
     # Add scene to layout
     cnt = max_subplot_ids[subplot_type] + 1
-    label = "{subplot_type}{cnt}".format(
-        subplot_type=subplot_type, cnt=cnt if cnt > 1 else ""
-    )
-    scene = dict(domain={"x": x_domain, "y": y_domain})
+
+    # Use simple concatenation, avoids .format overhead
+    if cnt > 1:
+        label = subplot_type + str(cnt)
+    else:
+        label = subplot_type
+
+    scene = {"domain": {"x": x_domain, "y": y_domain}}
     layout[label] = scene
 
     trace_key = (
@@ -1535,3 +1538,5 @@ def _get_subplot_ref_for_trace(trace):
                 pass
 
     return None
+
+_INITIAL_MAX_SUBPLOT_IDS = {subplot_type: 0 for subplot_type in _single_subplot_types}
