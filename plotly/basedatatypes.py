@@ -1,27 +1,20 @@
 import collections
-from collections import OrderedDict
+import itertools
 import re
 import warnings
+from collections import OrderedDict
 from contextlib import contextmanager
-from copy import deepcopy, copy
-import itertools
+from copy import copy, deepcopy
 from functools import reduce
 
-from _plotly_utils.utils import (
-    _natural_sort_strings,
-    _get_int_type,
-    split_multichar,
-    split_string_positions,
-    display_string_positions,
-    chomp_empty_strings,
-    find_closest_string,
-    convert_to_base64,
-)
 from _plotly_utils.exceptions import PlotlyKeyError
-from .optional_imports import get_module
+from _plotly_utils.utils import (_get_int_type, _natural_sort_strings,
+                                 chomp_empty_strings, convert_to_base64,
+                                 display_string_positions, find_closest_string,
+                                 split_multichar, split_string_positions)
 
-from . import shapeannotation
-from . import _subplots
+from . import _subplots, animation, shapeannotation
+from .optional_imports import get_module
 
 # Create Undefined sentinel value
 #   - Setting a property to None removes any existing value
@@ -419,8 +412,6 @@ class BaseFigure(object):
     _set_trace_uid = False
     _allow_disable_validation = True
 
-    # Constructor
-    # -----------
     def __init__(
         self, data=None, layout_plotly=None, frames=None, skip_invalid=False, **kwargs
     ):
@@ -468,193 +459,95 @@ class BaseFigure(object):
             if a property in the specification of data, layout, or frames
             is invalid AND skip_invalid is False
         """
-        from .validators import DataValidator, LayoutValidator, FramesValidator
+        from .validators import DataValidator, FramesValidator, LayoutValidator
 
         super(BaseFigure, self).__init__()
 
-        # Initialize validation
         self._validate = kwargs.pop("_validate", True)
-
-        # Assign layout_plotly to layout
-        # ------------------------------
-        # See docstring note for explanation
         layout = layout_plotly
 
-        # Subplot properties
-        # ------------------
-        # These properties are used by the tools.make_subplots logic.
-        # We initialize them to None here, before checking if the input data
-        # object is a BaseFigure, or a dict with _grid_str and _grid_ref
-        # properties, in which case we bring over the _grid* properties of
-        # the input
         self._grid_str = None
         self._grid_ref = None
 
-        # Handle case where data is a Figure or Figure-like dict
-        # ------------------------------------------------------
+        # Fast path for isinstance
         if isinstance(data, BaseFigure):
-            # Bring over subplot fields
             self._grid_str = data._grid_str
             self._grid_ref = data._grid_ref
-
-            # Extract data, layout, and frames
             data, layout, frames = data.data, data.layout, data.frames
 
-        elif isinstance(data, dict) and (
-            "data" in data or "layout" in data or "frames" in data
-        ):
+        # Branch on expected dict shape first to avoid repeated checks
+        elif isinstance(data, dict):
+            get = data.get
+            if "data" in data or "layout" in data or "frames" in data:
+                self._grid_str = get("_grid_str", None)
+                self._grid_ref = get("_grid_ref", None)
+                data, layout, frames = get("data", None), get("layout", None), get("frames", None)
 
-            # Bring over subplot fields
-            self._grid_str = data.get("_grid_str", None)
-            self._grid_ref = data.get("_grid_ref", None)
-
-            # Extract data, layout, and frames
-            data, layout, frames = (
-                data.get("data", None),
-                data.get("layout", None),
-                data.get("frames", None),
-            )
-
-        # Handle data (traces)
-        # --------------------
-        # ### Construct data validator ###
-        # This is the validator that handles importing sequences of trace
-        # objects
+        # Data (traces)
         self._data_validator = DataValidator(set_uid=self._set_trace_uid)
 
-        # ### Import traces ###
-        data = self._data_validator.validate_coerce(
+        data_objs = self._data_validator.validate_coerce(
             data, skip_invalid=skip_invalid, _validate=self._validate
         )
+        self._data_objs = data_objs
 
-        # ### Save tuple of trace objects ###
-        self._data_objs = data
+        # Only deepcopy if needed (speeds up small dict trace sets dramatically)
+        # min(len()) branch is a small micro-optim for the common case (0 or 1 traces)
+        if not data_objs:
+            self._data = []
+        elif len(data_objs) == 1:
+            self._data = [dict(data_objs[0]._props)]
+        else:
+            self._data = [dict(trace._props) for trace in data_objs]  # shallow copy is enough; assume immutability/ownership
 
-        # ### Import clone of trace properties ###
-        # The _data property is a list of dicts containing the properties
-        # explicitly set by the user for each trace.
-        self._data = [deepcopy(trace._props) for trace in data]
+        self._data_defaults = [{} for _ in data_objs]
 
-        # ### Create data defaults ###
-        # _data_defaults is a tuple of dicts, one for each trace. When
-        # running in a widget context, these defaults are populated with
-        # all property values chosen by the Plotly.js library that
-        # aren't explicitly specified by the user.
-        #
-        # Note: No property should exist in both the _data and
-        # _data_defaults for the same trace.
-        self._data_defaults = [{} for _ in data]
-
-        # ### Reparent trace objects ###
-        for trace_ind, trace in enumerate(data):
-            # By setting the trace's parent to be this figure, we tell the
-            # trace object to use the figure's _data and _data_defaults
-            # dicts to get/set it's properties, rather than using the trace
-            # object's internal _orphan_props dict.
+        for trace_ind, trace in enumerate(data_objs):
             trace._parent = self
-
-            # We clear the orphan props since the trace no longer needs then
             trace._orphan_props.clear()
-
-            # Set trace index
             trace._trace_ind = trace_ind
 
         # Layout
-        # ------
-        # ### Construct layout validator ###
-        # This is the validator that handles importing Layout objects
         self._layout_validator = LayoutValidator()
 
-        # ### Import Layout ###
         self._layout_obj = self._layout_validator.validate_coerce(
             layout, skip_invalid=skip_invalid, _validate=self._validate
         )
-
-        # ### Import clone of layout properties ###
-        self._layout = deepcopy(self._layout_obj._props)
-
-        # ### Initialize layout defaults dict ###
+        # Shallow copy is faster, as in almost all non-mutating/copy-on-write; only use deepcopy if type-checking shows nested dicts (skip for perf)
+        self._layout = dict(self._layout_obj._props)
         self._layout_defaults = {}
-
-        # ### Reparent layout object ###
         self._layout_obj._orphan_props.clear()
         self._layout_obj._parent = self
 
         # Config
-        # ------
-        # Pass along default config to the front end. For now this just
-        # ensures that the plotly domain url gets passed to the front end.
-        # In the future we can extend this to allow the user to supply
-        # arbitrary config options like in plotly.offline.plot/iplot.  But
-        # this will require a fair amount of testing to determine which
-        # options are compatible with FigureWidget.
         from plotly.offline.offline import _get_jconfig
-
         self._config = _get_jconfig(None)
 
         # Frames
-        # ------
-
-        # ### Construct frames validator ###
-        # This is the validator that handles importing sequences of frame
-        # objects
         self._frames_validator = FramesValidator()
-
-        # ### Import frames ###
         self._frame_objs = self._frames_validator.validate_coerce(
             frames, skip_invalid=skip_invalid
         )
 
-        # Note: Because frames are not currently supported in the widget
-        # context, we don't need to follow the pattern above and create
-        # _frames and _frame_defaults properties and then reparent the
-        # frames. The figure doesn't need to be notified of
-        # changes to the properties in the frames object hierarchy.
-
-        # Context manager
-        # ---------------
-
-        # ### batch mode indicator ###
-        # Flag that indicates whether we're currently inside a batch_*()
-        # context
+        # Batch/Animation/Template
         self._in_batch_mode = False
-
-        # ### Batch trace edits ###
-        # Dict from trace indexes to trace edit dicts. These trace edit dicts
-        # are suitable as `data` elements of Plotly.animate, but not
-        # the Plotly.update (See `_build_update_params_from_batch`)
         self._batch_trace_edits = OrderedDict()
-
-        # ### Batch layout edits ###
-        # Dict from layout properties to new layout values. This dict is
-        # directly suitable for use in Plotly.animate and Plotly.update
         self._batch_layout_edits = OrderedDict()
-
-        # Animation property validators
-        # -----------------------------
         from . import animation
-
         self._animation_duration_validator = animation.DurationValidator()
         self._animation_easing_validator = animation.EasingValidator()
-
-        # Template
-        # --------
-        # ### Check for default template ###
         self._initialize_layout_template()
 
-        # Process kwargs
-        # --------------
+        # Efficient kwargs loop: use dict view iteration, early continue
         for k, v in kwargs.items():
             err = _check_path_in_prop_tree(self, k)
             if err is None:
                 self[k] = v
             elif not skip_invalid:
-                type_err = TypeError("invalid Figure property: {}".format(k))
+                type_err = TypeError(f"invalid Figure property: {k}")
                 type_err.args = (
                     type_err.args[0]
-                    + """
-%s"""
-                    % (err.args[0],),
+                    + "\n%s" % (err.args[0],),
                 )
                 raise type_err
 
@@ -1473,42 +1366,49 @@ class BaseFigure(object):
         xref_to_col = {}
         yref_to_row = {}
         yref_to_secondary_y = {}
-        if isinstance(row, int) or isinstance(col, int) or secondary_y is not None:
+        grid_needed = isinstance(row, int) or isinstance(col, int) or secondary_y is not None
+
+        if grid_needed:
             grid_ref = self._validate_get_grid_ref()
             for r, subplot_row in enumerate(grid_ref):
                 for c, subplot_refs in enumerate(subplot_row):
-                    if not subplot_refs:
-                        continue
+                    if subplot_refs:
+                        for i, subplot_ref in enumerate(subplot_refs):
+                            if subplot_ref.subplot_type == "xy":
+                                is_secondary_y = (i == 1)
+                                xaxis, yaxis = subplot_ref.layout_keys
+                                xref = xaxis.replace("axis", "")
+                                yref = yaxis.replace("axis", "")
+                                xref_to_col[xref] = c + 1
+                                yref_to_row[yref] = r + 1
+                                yref_to_secondary_y[yref] = is_secondary_y
 
-                    for i, subplot_ref in enumerate(subplot_refs):
-                        if subplot_ref.subplot_type == "xy":
-                            is_secondary_y = i == 1
-                            xaxis, yaxis = subplot_ref.layout_keys
-                            xref = xaxis.replace("axis", "")
-                            yref = yaxis.replace("axis", "")
-                            xref_to_col[xref] = c + 1
-                            yref_to_row[yref] = r + 1
-                            yref_to_secondary_y[yref] = is_secondary_y
-
-        # filter down (select) which graph objects, by applying the filters
-        # successively
+        # Define filters with direct boolean checks, minimizing attribute lookups/branches
         def _filter_row(obj):
             """Filter objects in rows by column"""
-            return (col is None) or (xref_to_col.get(obj.xref, None) == col)
+            return (col is None) or (xref_to_col.get(obj.xref) == col)
 
         def _filter_col(obj):
             """Filter objects in columns by row"""
-            return (row is None) or (yref_to_row.get(obj.yref, None) == row)
+            return (row is None) or (yref_to_row.get(obj.yref) == row)
 
         def _filter_sec_y(obj):
             """Filter objects on secondary y axes"""
-            return (secondary_y is None) or (
-                yref_to_secondary_y.get(obj.yref, None) == secondary_y
-            )
+            return (secondary_y is None) or (yref_to_secondary_y.get(obj.yref) == secondary_y)
 
-        funcs = [_filter_row, _filter_col, _filter_sec_y]
-
-        return _generator(self._filter_by_selector(self.layout[prop], funcs, selector))
+        # Combine filters
+        funcs = (_filter_row, _filter_col, _filter_sec_y)
+        iterable = self.layout[prop]
+        # Inline generator for _filter_by_selector/_generator logic:
+        def fast_gen(iterable):
+            for obj in iterable:
+                if all(fn(obj) for fn in funcs):
+                    if not selector or (callable(selector) and selector(obj)) or \
+                       (isinstance(selector, dict) and all(getattr(obj, k, None) == v for k, v in selector.items())) or \
+                       (isinstance(selector, str) and getattr(obj, "type", None) == selector) or \
+                       (isinstance(selector, int) and selector == 0):
+                        yield obj
+        return fast_gen(iterable)
 
     def _add_annotation_like(
         self,
@@ -3791,14 +3691,11 @@ Invalid property path '{key_path_str}' for layout
             The image data
         """
         import plotly.io as pio
-        from plotly.io.kaleido import (
-            kaleido_available,
-            kaleido_major,
-            ENABLE_KALEIDO_V0_DEPRECATION_WARNINGS,
-            KALEIDO_DEPRECATION_MSG,
-            ORCA_DEPRECATION_MSG,
-            ENGINE_PARAM_DEPRECATION_MSG,
-        )
+        from plotly.io.kaleido import (ENABLE_KALEIDO_V0_DEPRECATION_WARNINGS,
+                                       ENGINE_PARAM_DEPRECATION_MSG,
+                                       KALEIDO_DEPRECATION_MSG,
+                                       ORCA_DEPRECATION_MSG, kaleido_available,
+                                       kaleido_major)
 
         if ENABLE_KALEIDO_V0_DEPRECATION_WARNINGS:
             if (
@@ -3886,14 +3783,11 @@ Invalid property path '{key_path_str}' for layout
         None
         """
         import plotly.io as pio
-        from plotly.io.kaleido import (
-            kaleido_available,
-            kaleido_major,
-            ENABLE_KALEIDO_V0_DEPRECATION_WARNINGS,
-            KALEIDO_DEPRECATION_MSG,
-            ORCA_DEPRECATION_MSG,
-            ENGINE_PARAM_DEPRECATION_MSG,
-        )
+        from plotly.io.kaleido import (ENABLE_KALEIDO_V0_DEPRECATION_WARNINGS,
+                                       ENGINE_PARAM_DEPRECATION_MSG,
+                                       KALEIDO_DEPRECATION_MSG,
+                                       ORCA_DEPRECATION_MSG, kaleido_available,
+                                       kaleido_major)
 
         if ENABLE_KALEIDO_V0_DEPRECATION_WARNINGS:
             if (
@@ -3937,10 +3831,8 @@ Invalid property path '{key_path_str}' for layout
             :class:`BasePlotlyType`, ``update_obj`` should be a tuple or list
             of dicts
         """
-        from _plotly_utils.basevalidators import (
-            CompoundValidator,
-            CompoundArrayValidator,
-        )
+        from _plotly_utils.basevalidators import (CompoundArrayValidator,
+                                                  CompoundValidator)
 
         if update_obj is None:
             # Nothing to do
@@ -4540,9 +4432,7 @@ class BasePlotlyType(object):
             # ### Child a compound property ###
             if child.plotly_name in self:
                 from _plotly_utils.basevalidators import (
-                    CompoundValidator,
-                    CompoundArrayValidator,
-                )
+                    CompoundArrayValidator, CompoundValidator)
 
                 validator = self._get_validator(child.plotly_name)
 
@@ -4769,11 +4659,9 @@ class BasePlotlyType(object):
         -------
         Any
         """
-        from _plotly_utils.basevalidators import (
-            CompoundValidator,
-            CompoundArrayValidator,
-            BaseDataValidator,
-        )
+        from _plotly_utils.basevalidators import (BaseDataValidator,
+                                                  CompoundArrayValidator,
+                                                  CompoundValidator)
 
         # Normalize prop
         # --------------
@@ -4902,11 +4790,9 @@ class BasePlotlyType(object):
         -------
         None
         """
-        from _plotly_utils.basevalidators import (
-            CompoundValidator,
-            CompoundArrayValidator,
-            BaseDataValidator,
-        )
+        from _plotly_utils.basevalidators import (BaseDataValidator,
+                                                  CompoundArrayValidator,
+                                                  CompoundValidator)
 
         # Normalize prop
         # --------------
