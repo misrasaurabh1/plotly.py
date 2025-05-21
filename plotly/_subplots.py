@@ -7,6 +7,7 @@
 # Note that this set does not contain `xaxis`/`yaxis` because these behave a
 # little differently.
 import collections
+from functools import lru_cache
 
 _single_subplot_types = {"scene", "geo", "polar", "ternary", "map", "mapbox"}
 _subplot_types = set.union(_single_subplot_types, {"xy", "domain"})
@@ -33,10 +34,8 @@ SubplotRef = collections.namedtuple(
 
 
 def _get_initial_max_subplot_ids():
-    max_subplot_ids = {subplot_type: 0 for subplot_type in _single_subplot_types}
-    max_subplot_ids["xaxis"] = 0
-    max_subplot_ids["yaxis"] = 0
-    return max_subplot_ids
+    # Make a shallow copy so mutations don't affect global constant
+    return dict(_INITIAL_MAX_SUBPLOT_IDS)
 
 
 def make_subplots(
@@ -966,23 +965,30 @@ def _configure_shared_axes(layout, grid_ref, specs, x_or_y, shared, row_dir):
 
 
 def _init_subplot_xy(layout, secondary_y, x_domain, y_domain, max_subplot_ids=None):
+    # Avoid using .format for static parts, use f-string and avoid unnecessary checks
     if max_subplot_ids is None:
         max_subplot_ids = _get_initial_max_subplot_ids()
 
-    # Get axis label and anchor
     x_cnt = max_subplot_ids["xaxis"] + 1
     y_cnt = max_subplot_ids["yaxis"] + 1
 
-    # Compute x/y labels (the values of trace.xaxis/trace.yaxis
-    x_label = "x{cnt}".format(cnt=x_cnt if x_cnt > 1 else "")
-    y_label = "y{cnt}".format(cnt=y_cnt if y_cnt > 1 else "")
+    if x_cnt == 1:
+        x_label = "x"
+        xaxis_name = "xaxis"
+    else:
+        x_label = f"x{x_cnt}"
+        xaxis_name = f"xaxis{x_cnt}"
 
-    # Anchor x and y axes to each other
-    x_anchor, y_anchor = y_label, x_label
+    if y_cnt == 1:
+        y_label = "y"
+        yaxis_name = "yaxis"
+    else:
+        y_label = f"y{y_cnt}"
+        yaxis_name = f"yaxis{y_cnt}"
 
-    # Build layout.xaxis/layout.yaxis containers
-    xaxis_name = "xaxis{cnt}".format(cnt=x_cnt if x_cnt > 1 else "")
-    yaxis_name = "yaxis{cnt}".format(cnt=y_cnt if y_cnt > 1 else "")
+    x_anchor = y_label
+    y_anchor = x_label
+
     x_axis = {"domain": x_domain, "anchor": x_anchor}
     y_axis = {"domain": y_domain, "anchor": y_anchor}
 
@@ -999,10 +1005,10 @@ def _init_subplot_xy(layout, secondary_y, x_domain, y_domain, max_subplot_ids=No
 
     if secondary_y:
         y_cnt += 1
-        secondary_yaxis_name = "yaxis{cnt}".format(cnt=y_cnt if y_cnt > 1 else "")
-        secondary_y_label = "y{cnt}".format(cnt=y_cnt)
+        # Secondary Y label is always "yN" where N >= 2
+        secondary_yaxis_name = f"yaxis{y_cnt}"
+        secondary_y_label = f"y{y_cnt}"
 
-        # Add secondary y-axis to subplot reference
         subplot_refs.append(
             SubplotRef(
                 subplot_type="xy",
@@ -1010,12 +1016,9 @@ def _init_subplot_xy(layout, secondary_y, x_domain, y_domain, max_subplot_ids=No
                 trace_kwargs={"xaxis": x_label, "yaxis": secondary_y_label},
             )
         )
-
-        # Add secondary y axis to layout
         secondary_y_axis = {"anchor": y_anchor, "overlaying": y_label, "side": "right"}
         layout[secondary_yaxis_name] = secondary_y_axis
 
-    # increment max_subplot_ids
     max_subplot_ids["xaxis"] = x_cnt
     max_subplot_ids["yaxis"] = y_cnt
 
@@ -1028,23 +1031,28 @@ def _init_subplot_single(
     if max_subplot_ids is None:
         max_subplot_ids = _get_initial_max_subplot_ids()
 
-    # Add scene to layout
     cnt = max_subplot_ids[subplot_type] + 1
-    label = "{subplot_type}{cnt}".format(
-        subplot_type=subplot_type, cnt=cnt if cnt > 1 else ""
-    )
-    scene = dict(domain={"x": x_domain, "y": y_domain})
+
+    # Only add a number if cnt > 1, else just subplot_type
+    if cnt == 1:
+        label = subplot_type
+    else:
+        label = f"{subplot_type}{cnt}"
+
+    # Directly build dict, avoids unnecessary formatting
+    scene = {"domain": {"x": x_domain, "y": y_domain}}
     layout[label] = scene
 
-    trace_key = (
-        "subplot" if subplot_type in _subplot_prop_named_subplot else subplot_type
-    )
+    # Use a variable for the slow check
+    if subplot_type in _subplot_prop_named_subplot:
+        trace_key = "subplot"
+    else:
+        trace_key = subplot_type
 
     subplot_ref = SubplotRef(
         subplot_type=subplot_type, layout_keys=(label,), trace_kwargs={trace_key: label}
     )
 
-    # increment max_subplot_id
     max_subplot_ids[subplot_type] = cnt
 
     return (subplot_ref,)
@@ -1087,6 +1095,7 @@ def _subplot_type_for_trace_type(trace_type):
     return None
 
 
+@lru_cache(maxsize=64)
 def _validate_coerce_subplot_type(subplot_type):
     # Lowercase subplot_type
     orig_subplot_type = subplot_type
@@ -1096,19 +1105,18 @@ def _validate_coerce_subplot_type(subplot_type):
     if subplot_type in _subplot_types:
         return subplot_type
 
-    # Try to determine subplot type for trace
-    subplot_type = _subplot_type_for_trace_type(subplot_type)
-
-    if subplot_type is None:
+    # Try to determine subplot type for trace, this is very slow so we cache
+    subplot_type2 = _subplot_type_for_trace_type(subplot_type)
+    if subplot_type2 is None:
         raise ValueError("Unsupported subplot type: {}".format(repr(orig_subplot_type)))
     else:
-        return subplot_type
+        return subplot_type2
 
 
 def _init_subplot(
     layout, subplot_type, secondary_y, x_domain, y_domain, max_subplot_ids=None
 ):
-    # Normalize subplot type
+    # The main hot path for slowdown is in _validate_coerce_subplot_type, which is now lru_cached
     subplot_type = _validate_coerce_subplot_type(subplot_type)
 
     if max_subplot_ids is None:
@@ -1117,8 +1125,12 @@ def _init_subplot(
     # Clamp domain elements between [0, 1].
     # This is only needed to combat numerical precision errors
     # See GH1031
-    x_domain = [max(0.0, x_domain[0]), min(1.0, x_domain[1])]
-    y_domain = [max(0.0, y_domain[0]), min(1.0, y_domain[1])]
+
+    # Inline min/max for speed (skip function call overhead for small cases)
+    x0, x1 = x_domain
+    y0, y1 = y_domain
+    x_domain = [x0 if x0 > 0.0 else 0.0, x1 if x1 < 1.0 else 1.0]
+    y_domain = [y0 if y0 > 0.0 else 0.0, y1 if y1 < 1.0 else 1.0]
 
     if subplot_type == "xy":
         subplot_refs = _init_subplot_xy(
@@ -1535,3 +1547,14 @@ def _get_subplot_ref_for_trace(trace):
                 pass
 
     return None
+
+_INITIAL_MAX_SUBPLOT_IDS = {
+    "scene": 0,
+    "geo": 0,
+    "polar": 0,
+    "ternary": 0,
+    "map": 0,
+    "mapbox": 0,
+    "xaxis": 0,
+    "yaxis": 0,
+}
