@@ -1,6 +1,7 @@
 from plotly import exceptions
 from plotly.graph_objs import graph_objs
 from plotly.figure_factory import utils
+from itertools import chain
 
 
 # Default colours for finance charts
@@ -270,11 +271,13 @@ class _OHLC(object):
             trace, flat_increase_y: y=values for the increasing trace and
             text_increase: hovertext for the increasing trace
         """
-        flat_increase_x = utils.flatten(self.increase_x)
-        flat_increase_y = utils.flatten(self.increase_y)
-        text_increase = ("Open", "Open", "High", "Low", "Close", "Close", "") * (
-            len(self.increase_x)
-        )
+        # Use faster itertools.chain.from_iterable to flatten lists
+        flat_increase_x = list(chain.from_iterable(self.increase_x))
+        flat_increase_y = list(chain.from_iterable(self.increase_y))
+        # Precomputed tuple for performance; tuple * n is efficient
+        labels = ("Open", "Open", "High", "Low", "Close", "Close", "")
+        n = len(self.increase_x)
+        text_increase = labels * n
 
         return flat_increase_x, flat_increase_y, text_increase
 
