@@ -353,7 +353,14 @@ def get_rect_xmax(data):
 
 def get_rect_ymin(data):
     """Find minimum y value from four (x,y) vertices."""
-    return min(data[0][1], data[1][1], data[2][1], data[3][1])
+    y0 = data[0][1]
+    y1 = data[1][1]
+    y2 = data[2][1]
+    y3 = data[3][1]
+    # Compare in pairs, to minimize comparisons and improve runtime on common cases
+    m1 = y0 if y0 < y1 else y1
+    m2 = y2 if y2 < y3 else y3
+    return m1 if m1 < m2 else m2
 
 
 def get_rect_ymax(data):
