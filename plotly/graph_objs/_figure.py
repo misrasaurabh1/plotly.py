@@ -22158,8 +22158,52 @@ class Figure(BaseFigure):
             Generator that iterates through all of the scene
             objects that satisfy all of the specified selection criteria
         """
+        layout = self.layout
 
-        return self._select_layout_subplots_by_prefix("scene", selector, row, col)
+        # Fast-path: no row/col/secondary_y specified
+        if row is None and col is None:
+            # Only select those keys that start with "scene" and value is not None
+            scene_items = ((k, layout[k]) for k in layout if k.startswith("scene") and layout[k] is not None)
+
+            if selector is None:
+                return (scene for _, scene in scene_items)
+            elif callable(selector):
+                return (scene for _, scene in scene_items if selector(scene))
+            else:
+                # Assume selector is a dict mapping prop->val
+                def _matches_criteria(scene):
+                    return all(scene.get(key, None) == val for key, val in selector.items())
+                return (scene for _, scene in scene_items if _matches_criteria(scene))
+        else:
+            # For subplot row/col selection, need the grid_ref mapping from the BaseFigure internals
+            grid_ref = self._validate_get_grid_ref()
+            container_to_row_col = {}
+            for r, subplot_row in enumerate(grid_ref):
+                for c, subplot_refs in enumerate(subplot_row):
+                    if not subplot_refs: continue
+                    for i, subplot_ref in enumerate(subplot_refs):
+                        for layout_key in subplot_ref.layout_keys:
+                            if layout_key.startswith("scene"):
+                                # scenes do not have secondary_y, so ignore 'i==1'
+                                container_to_row_col[layout_key] = (r+1, c+1)
+            # Filter keys
+            scenes = []
+            for k in layout:
+                if not (k.startswith("scene") and layout[k] is not None):
+                    continue
+                rowcol = container_to_row_col.get(k, (None, None))
+                if (row is not None and rowcol[0] != row) or (col is not None and rowcol[1] != col):
+                    continue
+                scenes.append(layout[k])
+            # Now filter with selector
+            if selector is None:
+                return iter(scenes)
+            elif callable(selector):
+                return (scene for scene in scenes if selector(scene))
+            else:
+                def _matches_criteria(scene):
+                    return all(scene.get(key, None) == val for key, val in selector.items())
+                return (scene for scene in scenes if _matches_criteria(scene))
 
     def for_each_scene(self, fn, selector=None, row=None, col=None) -> "Figure":
         """
@@ -22190,9 +22234,10 @@ class Figure(BaseFigure):
         self
             Returns the Figure object that the method was called on
         """
-        for obj in self.select_scenes(selector=selector, row=row, col=col):
+        # Avoid repeated attribute lookups
+        scene_iter = self.select_scenes(selector=selector, row=row, col=col)
+        for obj in scene_iter:
             fn(obj)
-
         return self
 
     def update_scenes(
