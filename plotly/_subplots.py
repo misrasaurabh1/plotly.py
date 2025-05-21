@@ -33,10 +33,17 @@ SubplotRef = collections.namedtuple(
 
 
 def _get_initial_max_subplot_ids():
-    max_subplot_ids = {subplot_type: 0 for subplot_type in _single_subplot_types}
-    max_subplot_ids["xaxis"] = 0
-    max_subplot_ids["yaxis"] = 0
-    return max_subplot_ids
+    # Directly construct the dictionary for maximum performance.
+    return {
+        "scene": 0,
+        "geo": 0,
+        "polar": 0,
+        "ternary": 0,
+        "map": 0,
+        "mapbox": 0,
+        "xaxis": 0,
+        "yaxis": 0,
+    }
 
 
 def make_subplots(
