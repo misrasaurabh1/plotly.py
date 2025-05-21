@@ -2,6 +2,7 @@
 # Modifications will be overwitten the next time code generation run.
 
 from plotly.basedatatypes import BaseFigure
+from plotly.graph_objs import Image
 
 
 class Figure(BaseFigure):
@@ -10080,50 +10081,12 @@ class Figure(BaseFigure):
         -------
         Figure
         """
-        from plotly.graph_objs import Image
-
-        new_trace = Image(
-            colormodel=colormodel,
-            customdata=customdata,
-            customdatasrc=customdatasrc,
-            dx=dx,
-            dy=dy,
-            hoverinfo=hoverinfo,
-            hoverinfosrc=hoverinfosrc,
-            hoverlabel=hoverlabel,
-            hovertemplate=hovertemplate,
-            hovertemplatesrc=hovertemplatesrc,
-            hovertext=hovertext,
-            hovertextsrc=hovertextsrc,
-            ids=ids,
-            idssrc=idssrc,
-            legend=legend,
-            legendgrouptitle=legendgrouptitle,
-            legendrank=legendrank,
-            legendwidth=legendwidth,
-            meta=meta,
-            metasrc=metasrc,
-            name=name,
-            opacity=opacity,
-            source=source,
-            stream=stream,
-            text=text,
-            textsrc=textsrc,
-            uid=uid,
-            uirevision=uirevision,
-            visible=visible,
-            x0=x0,
-            xaxis=xaxis,
-            y0=y0,
-            yaxis=yaxis,
-            z=z,
-            zmax=zmax,
-            zmin=zmin,
-            zorder=zorder,
-            zsmooth=zsmooth,
-            zsrc=zsrc,
-            **kwargs,
-        )
+        # All arguments, excluding self, are in locals()
+        # We'll filter for actual Image parameters
+        params = self._get_args_for_image(locals())
+        # Note: row, col, and secondary_y are not for Image
+        image_args = {k: v for k, v in params.items() if k not in ('row', 'col', 'secondary_y')}
+        new_trace = Image(**image_args)
         return self.add_trace(new_trace, row=row, col=col, secondary_y=secondary_y)
 
     def add_indicator(
@@ -24432,3 +24395,10 @@ class Figure(BaseFigure):
             secondary_y=secondary_y,
             exclude_empty_subplots=exclude_empty_subplots,
         )
+
+    @staticmethod
+    def _get_args_for_image(args: dict) -> dict:
+        # Remove 'self'
+        d = {k: v for k, v in args.items() if k != 'self'}
+        # Remove any arguments with value exactly None to use Image's default arguments
+        return {k: v for k, v in d.items() if v is not None}
