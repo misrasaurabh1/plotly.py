@@ -2,6 +2,7 @@
 # Modifications will be overwitten the next time code generation run.
 
 from plotly.basedatatypes import BaseFigure
+from plotly.graph_objs import Icicle
 
 
 class Figure(BaseFigure):
@@ -9730,60 +9731,69 @@ class Figure(BaseFigure):
         -------
         Figure
         """
-        from plotly.graph_objs import Icicle
 
-        new_trace = Icicle(
-            branchvalues=branchvalues,
-            count=count,
-            customdata=customdata,
-            customdatasrc=customdatasrc,
-            domain=domain,
-            hoverinfo=hoverinfo,
-            hoverinfosrc=hoverinfosrc,
-            hoverlabel=hoverlabel,
-            hovertemplate=hovertemplate,
-            hovertemplatesrc=hovertemplatesrc,
-            hovertext=hovertext,
-            hovertextsrc=hovertextsrc,
-            ids=ids,
-            idssrc=idssrc,
-            insidetextfont=insidetextfont,
-            labels=labels,
-            labelssrc=labelssrc,
-            leaf=leaf,
-            legend=legend,
-            legendgrouptitle=legendgrouptitle,
-            legendrank=legendrank,
-            legendwidth=legendwidth,
-            level=level,
-            marker=marker,
-            maxdepth=maxdepth,
-            meta=meta,
-            metasrc=metasrc,
-            name=name,
-            opacity=opacity,
-            outsidetextfont=outsidetextfont,
-            parents=parents,
-            parentssrc=parentssrc,
-            pathbar=pathbar,
-            root=root,
-            sort=sort,
-            stream=stream,
-            text=text,
-            textfont=textfont,
-            textinfo=textinfo,
-            textposition=textposition,
-            textsrc=textsrc,
-            texttemplate=texttemplate,
-            texttemplatesrc=texttemplatesrc,
-            tiling=tiling,
-            uid=uid,
-            uirevision=uirevision,
-            values=values,
-            valuessrc=valuessrc,
-            visible=visible,
-            **kwargs,
-        )
+        # Collect all Icicle-accepted parameters from local scope (faster than repeated assignment)
+        # This is safe here because the function signature lists all args explicitly.
+
+        icicle_params = {
+            'branchvalues': branchvalues,
+            'count': count,
+            'customdata': customdata,
+            'customdatasrc': customdatasrc,
+            'domain': domain,
+            'hoverinfo': hoverinfo,
+            'hoverinfosrc': hoverinfosrc,
+            'hoverlabel': hoverlabel,
+            'hovertemplate': hovertemplate,
+            'hovertemplatesrc': hovertemplatesrc,
+            'hovertext': hovertext,
+            'hovertextsrc': hovertextsrc,
+            'ids': ids,
+            'idssrc': idssrc,
+            'insidetextfont': insidetextfont,
+            'labels': labels,
+            'labelssrc': labelssrc,
+            'leaf': leaf,
+            'legend': legend,
+            'legendgrouptitle': legendgrouptitle,
+            'legendrank': legendrank,
+            'legendwidth': legendwidth,
+            'level': level,
+            'marker': marker,
+            'maxdepth': maxdepth,
+            'meta': meta,
+            'metasrc': metasrc,
+            'name': name,
+            'opacity': opacity,
+            'outsidetextfont': outsidetextfont,
+            'parents': parents,
+            'parentssrc': parentssrc,
+            'pathbar': pathbar,
+            'root': root,
+            'sort': sort,
+            'stream': stream,
+            'text': text,
+            'textfont': textfont,
+            'textinfo': textinfo,
+            'textposition': textposition,
+            'textsrc': textsrc,
+            'texttemplate': texttemplate,
+            'texttemplatesrc': texttemplatesrc,
+            'tiling': tiling,
+            'uid': uid,
+            'uirevision': uirevision,
+            'values': values,
+            'valuessrc': valuessrc,
+            'visible': visible,
+        }
+
+        icicle_params.update(kwargs)  # Add any additional keyword args
+
+        # Only pass non-None values to Icicle, this avoids unnecessary assignments
+        fast_params = {k: v for k, v in icicle_params.items() if v is not None}
+
+        new_trace = Icicle(**fast_params)
+
         return self.add_trace(new_trace, row=row, col=col)
 
     def add_image(
