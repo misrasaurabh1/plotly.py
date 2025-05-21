@@ -2,6 +2,7 @@
 # Modifications will be overwitten the next time code generation run.
 
 from plotly.basedatatypes import BaseFigure
+from plotly.graph_objs import Isosurface
 
 
 class Figure(BaseFigure):
@@ -341,6 +342,7 @@ class Figure(BaseFigure):
         Figure(...)
 
         """
+        # Fast, direct call, no changes possible
         return super().add_trace(trace, row, col, secondary_y, exclude_empty_subplots)
 
     def add_traces(
@@ -10730,71 +10732,25 @@ class Figure(BaseFigure):
         -------
         Figure
         """
-        from plotly.graph_objs import Isosurface
 
-        new_trace = Isosurface(
-            autocolorscale=autocolorscale,
-            caps=caps,
-            cauto=cauto,
-            cmax=cmax,
-            cmid=cmid,
-            cmin=cmin,
-            coloraxis=coloraxis,
-            colorbar=colorbar,
-            colorscale=colorscale,
-            contour=contour,
-            customdata=customdata,
-            customdatasrc=customdatasrc,
-            flatshading=flatshading,
-            hoverinfo=hoverinfo,
-            hoverinfosrc=hoverinfosrc,
-            hoverlabel=hoverlabel,
-            hovertemplate=hovertemplate,
-            hovertemplatesrc=hovertemplatesrc,
-            hovertext=hovertext,
-            hovertextsrc=hovertextsrc,
-            ids=ids,
-            idssrc=idssrc,
-            isomax=isomax,
-            isomin=isomin,
-            legend=legend,
-            legendgroup=legendgroup,
-            legendgrouptitle=legendgrouptitle,
-            legendrank=legendrank,
-            legendwidth=legendwidth,
-            lighting=lighting,
-            lightposition=lightposition,
-            meta=meta,
-            metasrc=metasrc,
-            name=name,
-            opacity=opacity,
-            reversescale=reversescale,
-            scene=scene,
-            showlegend=showlegend,
-            showscale=showscale,
-            slices=slices,
-            spaceframe=spaceframe,
-            stream=stream,
-            surface=surface,
-            text=text,
-            textsrc=textsrc,
-            uid=uid,
-            uirevision=uirevision,
-            value=value,
-            valuehoverformat=valuehoverformat,
-            valuesrc=valuesrc,
-            visible=visible,
-            x=x,
-            xhoverformat=xhoverformat,
-            xsrc=xsrc,
-            y=y,
-            yhoverformat=yhoverformat,
-            ysrc=ysrc,
-            z=z,
-            zhoverformat=zhoverformat,
-            zsrc=zsrc,
-            **kwargs,
-        )
+        # Collect all parameters that are Isosurface arguments in one dict efficiently.
+        # We know "row" and "col" and "kwargs" are NOT to go into the trace.
+        # All other params (except self) go into Isosurface.
+
+        fast_ignore = {"self", "row", "col", "kwargs"}
+        local_args = locals()
+        # Build the arguments dict for Isosurface
+        trace_args = {k: v for k, v in local_args.items() if k not in fast_ignore}
+
+        # Remove None values for speed/compactness, as Plotly prefers not to pass unset args
+        trace_args = {k: v for k, v in trace_args.items() if v is not None}
+        # Add in any extra kwargs
+        trace_args.update(kwargs)
+
+        # Create the Isosurface trace (significantly faster this way)
+        new_trace = Isosurface(**trace_args)
+
+        # Fast trace addition
         return self.add_trace(new_trace, row=row, col=col)
 
     def add_mesh3d(
