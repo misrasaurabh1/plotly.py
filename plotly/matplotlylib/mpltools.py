@@ -84,12 +84,7 @@ def convert_dash(mpl_dash):
 
 
 def convert_path(path):
-    verts = path[0]  # may use this later
-    code = tuple(path[1])
-    if code in PATH_MAP:
-        return PATH_MAP[code]
-    else:
-        return None
+    return PATH_MAP.get(tuple(path[1]))
 
 
 def convert_symbol(mpl_symbol):
