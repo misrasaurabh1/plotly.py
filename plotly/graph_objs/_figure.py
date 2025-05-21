@@ -2,6 +2,7 @@
 # Modifications will be overwitten the next time code generation run.
 
 from plotly.basedatatypes import BaseFigure
+from plotly.graph_objs import Barpolar
 
 
 class Figure(BaseFigure):
@@ -1511,58 +1512,20 @@ class Figure(BaseFigure):
         -------
         Figure
         """
-        from plotly.graph_objs import Barpolar
-
-        new_trace = Barpolar(
-            base=base,
-            basesrc=basesrc,
-            customdata=customdata,
-            customdatasrc=customdatasrc,
-            dr=dr,
-            dtheta=dtheta,
-            hoverinfo=hoverinfo,
-            hoverinfosrc=hoverinfosrc,
-            hoverlabel=hoverlabel,
-            hovertemplate=hovertemplate,
-            hovertemplatesrc=hovertemplatesrc,
-            hovertext=hovertext,
-            hovertextsrc=hovertextsrc,
-            ids=ids,
-            idssrc=idssrc,
-            legend=legend,
-            legendgroup=legendgroup,
-            legendgrouptitle=legendgrouptitle,
-            legendrank=legendrank,
-            legendwidth=legendwidth,
-            marker=marker,
-            meta=meta,
-            metasrc=metasrc,
-            name=name,
-            offset=offset,
-            offsetsrc=offsetsrc,
-            opacity=opacity,
-            r=r,
-            r0=r0,
-            rsrc=rsrc,
-            selected=selected,
-            selectedpoints=selectedpoints,
-            showlegend=showlegend,
-            stream=stream,
-            subplot=subplot,
-            text=text,
-            textsrc=textsrc,
-            theta=theta,
-            theta0=theta0,
-            thetasrc=thetasrc,
-            thetaunit=thetaunit,
-            uid=uid,
-            uirevision=uirevision,
-            unselected=unselected,
-            visible=visible,
-            width=width,
-            widthsrc=widthsrc,
-            **kwargs,
-        )
+        # Build argument dict only with values that are not None
+        local_vars = locals()
+        keys = [
+            "base","basesrc","customdata","customdatasrc","dr","dtheta","hoverinfo",
+            "hoverinfosrc","hoverlabel","hovertemplate","hovertemplatesrc","hovertext",
+            "hovertextsrc","ids","idssrc","legend","legendgroup","legendgrouptitle","legendrank",
+            "legendwidth","marker","meta","metasrc","name","offset","offsetsrc","opacity","r","r0",
+            "rsrc","selected","selectedpoints","showlegend","stream","subplot","text","textsrc",
+            "theta","theta0","thetasrc","thetaunit","uid","uirevision","unselected","visible",
+            "width","widthsrc"
+        ]
+        barpolar_args = {k: local_vars[k] for k in keys if local_vars[k] is not None}
+        barpolar_args.update(kwargs)
+        new_trace = Barpolar(**barpolar_args)
         return self.add_trace(new_trace, row=row, col=col)
 
     def add_box(
