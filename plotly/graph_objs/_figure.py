@@ -2,6 +2,7 @@
 # Modifications will be overwitten the next time code generation run.
 
 from plotly.basedatatypes import BaseFigure
+from plotly.graph_objs import Scattergl
 
 
 class Figure(BaseFigure):
@@ -15110,74 +15111,18 @@ class Figure(BaseFigure):
         -------
         Figure
         """
-        from plotly.graph_objs import Scattergl
+        # Build a dict of all possible parameters from locals, filter out None values and those pertaining to subplot control
+        exclude_keys = {'self', 'row', 'col', 'secondary_y', 'kwargs'}
+        trace_args = {}
 
-        new_trace = Scattergl(
-            connectgaps=connectgaps,
-            customdata=customdata,
-            customdatasrc=customdatasrc,
-            dx=dx,
-            dy=dy,
-            error_x=error_x,
-            error_y=error_y,
-            fill=fill,
-            fillcolor=fillcolor,
-            hoverinfo=hoverinfo,
-            hoverinfosrc=hoverinfosrc,
-            hoverlabel=hoverlabel,
-            hovertemplate=hovertemplate,
-            hovertemplatesrc=hovertemplatesrc,
-            hovertext=hovertext,
-            hovertextsrc=hovertextsrc,
-            ids=ids,
-            idssrc=idssrc,
-            legend=legend,
-            legendgroup=legendgroup,
-            legendgrouptitle=legendgrouptitle,
-            legendrank=legendrank,
-            legendwidth=legendwidth,
-            line=line,
-            marker=marker,
-            meta=meta,
-            metasrc=metasrc,
-            mode=mode,
-            name=name,
-            opacity=opacity,
-            selected=selected,
-            selectedpoints=selectedpoints,
-            showlegend=showlegend,
-            stream=stream,
-            text=text,
-            textfont=textfont,
-            textposition=textposition,
-            textpositionsrc=textpositionsrc,
-            textsrc=textsrc,
-            texttemplate=texttemplate,
-            texttemplatesrc=texttemplatesrc,
-            uid=uid,
-            uirevision=uirevision,
-            unselected=unselected,
-            visible=visible,
-            x=x,
-            x0=x0,
-            xaxis=xaxis,
-            xcalendar=xcalendar,
-            xhoverformat=xhoverformat,
-            xperiod=xperiod,
-            xperiod0=xperiod0,
-            xperiodalignment=xperiodalignment,
-            xsrc=xsrc,
-            y=y,
-            y0=y0,
-            yaxis=yaxis,
-            ycalendar=ycalendar,
-            yhoverformat=yhoverformat,
-            yperiod=yperiod,
-            yperiod0=yperiod0,
-            yperiodalignment=yperiodalignment,
-            ysrc=ysrc,
-            **kwargs,
-        )
+        local_vars = locals()
+        for k in local_vars:
+            if k not in exclude_keys and local_vars[k] is not None:
+                trace_args[k] = local_vars[k]
+        trace_args.update(kwargs)
+
+        # Create the trace using only the required non-None parameters
+        new_trace = Scattergl(**trace_args)
         return self.add_trace(new_trace, row=row, col=col, secondary_y=secondary_y)
 
     def add_scattermap(
