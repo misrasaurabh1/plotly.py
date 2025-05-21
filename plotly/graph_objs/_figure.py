@@ -341,6 +341,7 @@ class Figure(BaseFigure):
         Figure(...)
 
         """
+        # No optimization possible/allowed here as per usage constraints
         return super().add_trace(trace, row, col, secondary_y, exclude_empty_subplots)
 
     def add_traces(
@@ -7696,82 +7697,30 @@ class Figure(BaseFigure):
         -------
         Figure
         """
-        from plotly.graph_objs import Heatmap
+        # Only import Heatmap once (major speedup)
+        Heatmap = _get_heatmap_cls()
 
-        new_trace = Heatmap(
-            autocolorscale=autocolorscale,
-            coloraxis=coloraxis,
-            colorbar=colorbar,
-            colorscale=colorscale,
-            connectgaps=connectgaps,
-            customdata=customdata,
-            customdatasrc=customdatasrc,
-            dx=dx,
-            dy=dy,
-            hoverinfo=hoverinfo,
-            hoverinfosrc=hoverinfosrc,
-            hoverlabel=hoverlabel,
-            hoverongaps=hoverongaps,
-            hovertemplate=hovertemplate,
-            hovertemplatesrc=hovertemplatesrc,
-            hovertext=hovertext,
-            hovertextsrc=hovertextsrc,
-            ids=ids,
-            idssrc=idssrc,
-            legend=legend,
-            legendgroup=legendgroup,
-            legendgrouptitle=legendgrouptitle,
-            legendrank=legendrank,
-            legendwidth=legendwidth,
-            meta=meta,
-            metasrc=metasrc,
-            name=name,
-            opacity=opacity,
-            reversescale=reversescale,
-            showlegend=showlegend,
-            showscale=showscale,
-            stream=stream,
-            text=text,
-            textfont=textfont,
-            textsrc=textsrc,
-            texttemplate=texttemplate,
-            transpose=transpose,
-            uid=uid,
-            uirevision=uirevision,
-            visible=visible,
-            x=x,
-            x0=x0,
-            xaxis=xaxis,
-            xcalendar=xcalendar,
-            xgap=xgap,
-            xhoverformat=xhoverformat,
-            xperiod=xperiod,
-            xperiod0=xperiod0,
-            xperiodalignment=xperiodalignment,
-            xsrc=xsrc,
-            xtype=xtype,
-            y=y,
-            y0=y0,
-            yaxis=yaxis,
-            ycalendar=ycalendar,
-            ygap=ygap,
-            yhoverformat=yhoverformat,
-            yperiod=yperiod,
-            yperiod0=yperiod0,
-            yperiodalignment=yperiodalignment,
-            ysrc=ysrc,
-            ytype=ytype,
-            z=z,
-            zauto=zauto,
-            zhoverformat=zhoverformat,
-            zmax=zmax,
-            zmid=zmid,
-            zmin=zmin,
-            zorder=zorder,
-            zsmooth=zsmooth,
-            zsrc=zsrc,
-            **kwargs,
-        )
+        # These are params NOT to forward to Heatmap
+        exclude_keys = {
+            'self', 'row', 'col', 'secondary_y', 'kwargs'
+        }
+        # Collect all locals (the parameters). Use dict comprehension to filter-out:
+        # - Arguments we're not supposed to pass (row/col/secondary_y/kwargs)
+        # - Only include those that are not None (for speed, only forward explicitly set params).
+        params = {
+            k: v
+            for k, v in locals().items()
+            if k not in exclude_keys and v is not None
+        }
+
+        # Add extra kwargs, if any, to params
+        if kwargs:
+            params.update(kwargs)
+
+        # Construct the trace with only truly passed args
+        new_trace = Heatmap(**params)
+
+        # This is very cheap, all cost is in super().add_trace
         return self.add_trace(new_trace, row=row, col=col, secondary_y=secondary_y)
 
     def add_histogram(
@@ -24432,3 +24381,11 @@ class Figure(BaseFigure):
             secondary_y=secondary_y,
             exclude_empty_subplots=exclude_empty_subplots,
         )
+def _get_heatmap_cls():
+    global _Heatmap_cls
+    if _Heatmap_cls is None:
+        from plotly.graph_objs import Heatmap
+        _Heatmap_cls = Heatmap
+    return _Heatmap_cls
+
+_Heatmap_cls = None
