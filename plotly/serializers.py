@@ -25,44 +25,34 @@ def _py_to_js(v, widget_manager):
         Value that the ipywidget library can serialize natively
     """
 
-    # Handle dict recursively
-    # -----------------------
-    if isinstance(v, dict):
-        return {k: _py_to_js(v, widget_manager) for k, v in v.items()}
-
-    # Handle list/tuple recursively
-    # -----------------------------
-    elif isinstance(v, (list, tuple)):
-        return [_py_to_js(v, widget_manager) for v in v]
-
-    # Handle numpy array
-    # ------------------
-    elif np is not None and isinstance(v, np.ndarray):
-        # Convert 1D numpy arrays with numeric types to memoryviews with
-        # datatype and shape metadata.
-        if (
-            v.ndim == 1
-            and v.dtype.kind in ["u", "i", "f"]
-            and v.dtype != "int64"
-            and v.dtype != "uint64"
-        ):
-
-            # We have a numpy array the we can directly map to a JavaScript
-            # Typed array
-            return {"buffer": memoryview(v), "dtype": str(v.dtype), "shape": v.shape}
-        else:
-            # Convert all other numpy arrays to lists
-            return v.tolist()
-
-    # Handle Undefined
-    # ----------------
+    # Fastest singletons check first
     if v is Undefined:
         return "_undefined_"
 
-    # Handle simple value
-    # -------------------
-    else:
-        return v
+    # Dicts
+    if _isinstance(v, _dict):
+        return {k: _py_to_js(val, widget_manager) for k, val in v.items()}
+
+    # List & Tuple
+    if _isinstance(v, (_list, _tuple)):
+        return [_py_to_js(item, widget_manager) for item in v]
+
+    # Numpy array (if available)
+    if _NDARRAY is not None and _isinstance(v, _NDARRAY):
+        # Only map certain 1D numpy arrays to {"buffer", ...}
+        if (
+            v.ndim == 1
+            and v.dtype.kind in ("u", "i", "f")
+            and v.dtype != "int64"
+            and v.dtype != "uint64"
+        ):
+            # Map to TypedArray-compatible dict
+            return {"buffer": memoryview(v), "dtype": str(v.dtype), "shape": v.shape}
+        else:
+            return v.tolist()
+
+    # Fallback
+    return v
 
 
 def _js_to_py(v, widget_manager):
@@ -104,3 +94,13 @@ def _js_to_py(v, widget_manager):
 
 # Custom serializer dict for use in ipywidget traitlet definitions
 custom_serializers = {"from_json": _js_to_py, "to_json": _py_to_js}
+
+_NDARRAY = getattr(np, "ndarray", None) if np is not None else None
+
+_isinstance = isinstance
+
+_list = list
+
+_tuple = tuple
+
+_dict = dict
