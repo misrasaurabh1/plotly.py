@@ -31,16 +31,8 @@ format_conversions.update({"jpg": "jpeg"})
 # Utility functions
 # -----------------
 def raise_format_value_error(val):
-    raise ValueError(
-        """
-Invalid value of type {typ} receive as an image format specification.
-    Received value: {v}
-
-An image format must be specified as one of the following string values:
-    {valid_formats}""".format(
-            typ=type(val), v=val, valid_formats=sorted(format_conversions.keys())
-        )
-    )
+    # Use pre-built error message template for performance
+    raise ValueError(_error_msg_tmpl.format(typ=type(val), v=val))
 
 
 def validate_coerce_format(fmt):
@@ -70,27 +62,27 @@ def validate_coerce_format(fmt):
         if the input `fmt` cannot be interpreted as a valid image format.
     """
 
-    # Let None pass through
+    # Fast-path for None
     if fmt is None:
         return None
 
-    # Check format type
-    if not isinstance(fmt, str) or not fmt:
+    # Must be a non-empty string
+    if not (isinstance(fmt, str) and fmt):
         raise_format_value_error(fmt)
 
-    # Make lower case
-    fmt = fmt.lower()
+    fmt0 = fmt[0]
 
-    # Remove leading period, if any.
-    # For example '.png' is accepted and converted to 'png'
-    if fmt[0] == ".":
+    # Optimize lowercase and period removal with a single step if needed
+    if fmt0 == ".":
         fmt = fmt[1:]
 
-    # Check string value
+    fmt = fmt.lower()
+
+    # Fast set lookup for validity
     if fmt not in format_conversions:
         raise_format_value_error(fmt)
 
-    # Return converted string specification
+    # Return the format (conversion table is identity)
     return format_conversions[fmt]
 
 
@@ -1733,3 +1725,12 @@ The 'file' argument '{file}' is not a string, pathlib.Path object, or file descr
         # We previously succeeded in interpreting `file` as a pathlib object.
         # Now we can use `write_bytes()`.
         path.write_bytes(img_data)
+
+_sorted_valid_formats = sorted(format_conversions.keys())
+
+_error_msg_tmpl = (
+    "\nInvalid value of type {typ} receive as an image format specification.\n"
+    "    Received value: {v}\n\n"
+    "An image format must be specified as one of the following string values:\n"
+    "    {_valid_formats}".format(typ="{typ}", v="{v}", _valid_formats=_sorted_valid_formats)
+)
