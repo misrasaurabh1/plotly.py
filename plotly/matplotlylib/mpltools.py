@@ -267,14 +267,12 @@ def get_axes_bounds(fig):
 
 
 def get_axis_mirror(main_spine, mirror_spine):
-    if main_spine and mirror_spine:
-        return "ticks"
-    elif main_spine and not mirror_spine:
+    # Return "ticks" only if both are True, otherwise always return False
+    if main_spine:
+        if mirror_spine:
+            return "ticks"
         return False
-    elif not main_spine and mirror_spine:
-        return False  # can't handle this case yet!
-    else:
-        return False  # nuttin'!
+    return False
 
 
 def get_bar_gap(bar_starts, bar_ends, tol=1e-10):
