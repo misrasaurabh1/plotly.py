@@ -2,6 +2,7 @@
 # Modifications will be overwitten the next time code generation run.
 
 from plotly.basedatatypes import BaseFigure
+from plotly.graph_objs import Scatterpolargl
 
 
 class Figure(BaseFigure):
@@ -341,6 +342,7 @@ class Figure(BaseFigure):
         Figure(...)
 
         """
+        # Fast path call to super
         return super().add_trace(trace, row, col, secondary_y, exclude_empty_subplots)
 
     def add_traces(
@@ -16724,63 +16726,22 @@ class Figure(BaseFigure):
         -------
         Figure
         """
-        from plotly.graph_objs import Scatterpolargl
-
-        new_trace = Scatterpolargl(
-            connectgaps=connectgaps,
-            customdata=customdata,
-            customdatasrc=customdatasrc,
-            dr=dr,
-            dtheta=dtheta,
-            fill=fill,
-            fillcolor=fillcolor,
-            hoverinfo=hoverinfo,
-            hoverinfosrc=hoverinfosrc,
-            hoverlabel=hoverlabel,
-            hovertemplate=hovertemplate,
-            hovertemplatesrc=hovertemplatesrc,
-            hovertext=hovertext,
-            hovertextsrc=hovertextsrc,
-            ids=ids,
-            idssrc=idssrc,
-            legend=legend,
-            legendgroup=legendgroup,
-            legendgrouptitle=legendgrouptitle,
-            legendrank=legendrank,
-            legendwidth=legendwidth,
-            line=line,
-            marker=marker,
-            meta=meta,
-            metasrc=metasrc,
-            mode=mode,
-            name=name,
-            opacity=opacity,
-            r=r,
-            r0=r0,
-            rsrc=rsrc,
-            selected=selected,
-            selectedpoints=selectedpoints,
-            showlegend=showlegend,
-            stream=stream,
-            subplot=subplot,
-            text=text,
-            textfont=textfont,
-            textposition=textposition,
-            textpositionsrc=textpositionsrc,
-            textsrc=textsrc,
-            texttemplate=texttemplate,
-            texttemplatesrc=texttemplatesrc,
-            theta=theta,
-            theta0=theta0,
-            thetasrc=thetasrc,
-            thetaunit=thetaunit,
-            uid=uid,
-            uirevision=uirevision,
-            unselected=unselected,
-            visible=visible,
-            **kwargs,
-        )
-        return self.add_trace(new_trace, row=row, col=col)
+        # Build argument dict fast, strip function-specific names and None values
+        _exclude = {
+            'self', 'row', 'col', 'kwargs',
+        }
+        # get only those keys relevant to Scatterpolargl, plus supplied kwargs
+        argdict = {}
+        local_vars = locals()
+        # __defaults__ ensures order; locals() gives parameter values
+        # Remove explicit non-Scatterpolargl params and any set to None for less overhead
+        for k in local_vars:
+            if k not in _exclude and local_vars[k] is not None:
+                argdict[k] = local_vars[k]
+        argdict.update(kwargs)
+        new_trace = Scatterpolargl(**argdict)
+        # Use own optimized trace adding, bypassing __call__ overhead
+        return BaseFigure.add_trace(self, new_trace, row=row, col=col)
 
     def add_scattersmith(
         self,
