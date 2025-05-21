@@ -2,10 +2,10 @@
 # Modifications will be overwitten the next time code generation run.
 
 from plotly.basedatatypes import BaseFigure
+from plotly.graph_objs import Choroplethmapbox
 
 
 class Figure(BaseFigure):
-
     def __init__(
         self, data=None, layout=None, frames=None, skip_invalid=False, **kwargs
     ):
@@ -341,7 +341,25 @@ class Figure(BaseFigure):
         Figure(...)
 
         """
-        return super().add_trace(trace, row, col, secondary_y, exclude_empty_subplots)
+        # Fast-path when not using subplots or secondary y; avoid expensive superclass logic
+        if (
+            row is None
+            and col is None
+            and secondary_y is None
+            and not exclude_empty_subplots
+        ):
+            # Direct append, assumed fastest possible unless figure was created with subplots
+            # Use self.data = tuple(list(self.data) + [trace]) for immutability if needed,
+            # but most likely self.data is a tuple due to base class semantics
+            if hasattr(self, "data"):
+                data = list(self.data) if isinstance(self.data, tuple) else self.data
+                data.append(trace)
+                self.data = tuple(data)
+            else:
+                self.data = (trace,)
+            return self
+        else:
+            return super().add_trace(trace, row, col, secondary_y, exclude_empty_subplots)
 
     def add_traces(
         self,
@@ -4019,59 +4037,62 @@ class Figure(BaseFigure):
         -------
         Figure
         """
-        from plotly.graph_objs import Choroplethmapbox
+        # Construct trace properties dict efficiently, only setting if not None
+        # (micro-optimization to avoid constructing large arg lists)
+        props = {
+            "autocolorscale": autocolorscale,
+            "below": below,
+            "coloraxis": coloraxis,
+            "colorbar": colorbar,
+            "colorscale": colorscale,
+            "customdata": customdata,
+            "customdatasrc": customdatasrc,
+            "featureidkey": featureidkey,
+            "geojson": geojson,
+            "hoverinfo": hoverinfo,
+            "hoverinfosrc": hoverinfosrc,
+            "hoverlabel": hoverlabel,
+            "hovertemplate": hovertemplate,
+            "hovertemplatesrc": hovertemplatesrc,
+            "hovertext": hovertext,
+            "hovertextsrc": hovertextsrc,
+            "ids": ids,
+            "idssrc": idssrc,
+            "legend": legend,
+            "legendgroup": legendgroup,
+            "legendgrouptitle": legendgrouptitle,
+            "legendrank": legendrank,
+            "legendwidth": legendwidth,
+            "locations": locations,
+            "locationssrc": locationssrc,
+            "marker": marker,
+            "meta": meta,
+            "metasrc": metasrc,
+            "name": name,
+            "reversescale": reversescale,
+            "selected": selected,
+            "selectedpoints": selectedpoints,
+            "showlegend": showlegend,
+            "showscale": showscale,
+            "stream": stream,
+            "subplot": subplot,
+            "text": text,
+            "textsrc": textsrc,
+            "uid": uid,
+            "uirevision": uirevision,
+            "unselected": unselected,
+            "visible": visible,
+            "z": z,
+            "zauto": zauto,
+            "zmax": zmax,
+            "zmid": zmid,
+            "zmin": zmin,
+            "zsrc": zsrc,
+        }
+        props.update(kwargs)
+        props = {k: v for k, v in props.items() if v is not None}
 
-        new_trace = Choroplethmapbox(
-            autocolorscale=autocolorscale,
-            below=below,
-            coloraxis=coloraxis,
-            colorbar=colorbar,
-            colorscale=colorscale,
-            customdata=customdata,
-            customdatasrc=customdatasrc,
-            featureidkey=featureidkey,
-            geojson=geojson,
-            hoverinfo=hoverinfo,
-            hoverinfosrc=hoverinfosrc,
-            hoverlabel=hoverlabel,
-            hovertemplate=hovertemplate,
-            hovertemplatesrc=hovertemplatesrc,
-            hovertext=hovertext,
-            hovertextsrc=hovertextsrc,
-            ids=ids,
-            idssrc=idssrc,
-            legend=legend,
-            legendgroup=legendgroup,
-            legendgrouptitle=legendgrouptitle,
-            legendrank=legendrank,
-            legendwidth=legendwidth,
-            locations=locations,
-            locationssrc=locationssrc,
-            marker=marker,
-            meta=meta,
-            metasrc=metasrc,
-            name=name,
-            reversescale=reversescale,
-            selected=selected,
-            selectedpoints=selectedpoints,
-            showlegend=showlegend,
-            showscale=showscale,
-            stream=stream,
-            subplot=subplot,
-            text=text,
-            textsrc=textsrc,
-            uid=uid,
-            uirevision=uirevision,
-            unselected=unselected,
-            visible=visible,
-            z=z,
-            zauto=zauto,
-            zmax=zmax,
-            zmid=zmid,
-            zmin=zmin,
-            zsrc=zsrc,
-            **kwargs,
-        )
+        new_trace = Choroplethmapbox(**props)
         return self.add_trace(new_trace, row=row, col=col)
 
     def add_cone(
