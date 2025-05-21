@@ -1445,51 +1445,49 @@ def _get_grid_subplot(fig, row, col, secondary_y=False):
     cols = len(grid_ref[0])
 
     # Validate row
-    if not isinstance(row, int) or row < 1 or rows < row:
+    if not (isinstance(row, int) and 1 <= row <= rows):
         raise ValueError(
-            """
+            f"""
 The row argument to get_subplot must be an integer where 1 <= row <= {rows}
-    Received value of type {typ}: {val}""".format(
-                rows=rows, typ=type(row), val=repr(row)
-            )
+    Received value of type {type(row)}: {repr(row)}"""
         )
 
-    if not isinstance(col, int) or col < 1 or cols < col:
+    if not (isinstance(col, int) and 1 <= col <= cols):
         raise ValueError(
-            """
+            f"""
 The col argument to get_subplot must be an integer where 1 <= row <= {cols}
-    Received value of type {typ}: {val}""".format(
-                cols=cols, typ=type(col), val=repr(col)
-            )
+    Received value of type {type(col)}: {repr(col)}"""
         )
 
-    subplot_refs = fig._grid_ref[row - 1][col - 1]
+    subplot_refs = grid_ref[row - 1][col - 1]
     if not subplot_refs:
         return None
 
+    # Use local variable for layout_keys to avoid redundant attribute lookups
     if secondary_y:
         if len(subplot_refs) > 1:
-            layout_keys = subplot_refs[1].layout_keys
+            subplot = subplot_refs[1]
+            layout_keys = subplot.layout_keys
         else:
             return None
     else:
-        layout_keys = subplot_refs[0].layout_keys
+        subplot = subplot_refs[0]
+        layout_keys = subplot.layout_keys
 
-    if len(layout_keys) == 0:
-        return SubplotDomain(**subplot_refs[0].trace_kwargs["domain"])
-    elif len(layout_keys) == 1:
+    if not layout_keys:
+        # Only use SubplotDomain if no keys exist at all
+        return SubplotDomain(**subplot.trace_kwargs["domain"])
+    if len(layout_keys) == 1:
         return fig.layout[layout_keys[0]]
-    elif len(layout_keys) == 2:
-        return SubplotXY(
-            xaxis=fig.layout[layout_keys[0]], yaxis=fig.layout[layout_keys[1]]
-        )
-    else:
-        raise ValueError(
-            """
-Unexpected subplot type with layout_keys of {}""".format(
-                layout_keys
-            )
-        )
+    if len(layout_keys) == 2:
+        # Avoid repeated indexing
+        xk, yk = layout_keys
+        return SubplotXY(xaxis=fig.layout[xk], yaxis=fig.layout[yk])
+
+    raise ValueError(
+        f"""
+Unexpected subplot type with layout_keys of {layout_keys}"""
+    )
 
 
 def _get_subplot_ref_for_trace(trace):
