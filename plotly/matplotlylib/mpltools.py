@@ -84,12 +84,9 @@ def convert_dash(mpl_dash):
 
 
 def convert_path(path):
-    verts = path[0]  # may use this later
-    code = tuple(path[1])
-    if code in PATH_MAP:
-        return PATH_MAP[code]
-    else:
-        return None
+    # verts = path[0]  # may use this later
+    code = tuple(path[1])  # Preserved: conversion, as type of path[1] is unknown
+    return PATH_MAP.get(code, None)  # much faster than "if in/else"
 
 
 def convert_symbol(mpl_symbol):
@@ -304,9 +301,8 @@ def convert_rgba_array(color_list):
 
 
 def convert_path_array(path_array):
-    symbols = list()
-    for path in path_array:
-        symbols += [convert_path(path)]
+    # Use a list comprehension for efficiency
+    symbols = [convert_path(path) for path in path_array]
     if len(symbols) == 1:
         return symbols[0]
     else:
