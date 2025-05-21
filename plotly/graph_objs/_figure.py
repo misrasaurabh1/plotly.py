@@ -2,6 +2,7 @@
 # Modifications will be overwitten the next time code generation run.
 
 from plotly.basedatatypes import BaseFigure
+from plotly.graph_objs import Choropleth
 
 
 class Figure(BaseFigure):
@@ -341,6 +342,12 @@ class Figure(BaseFigure):
         Figure(...)
 
         """
+        # Fast path: directly append if no subplots or extras
+        if row is None and col is None and secondary_y is None and not exclude_empty_subplots:
+            # Don't use self.data += [trace], which copies!
+            self.data.append(trace)
+            return self
+        # Else, fallback to slow path for subplot support, etc
         return super().add_trace(trace, row, col, secondary_y, exclude_empty_subplots)
 
     def add_traces(
@@ -3244,59 +3251,64 @@ class Figure(BaseFigure):
         -------
         Figure
         """
-        from plotly.graph_objs import Choropleth
-
-        new_trace = Choropleth(
-            autocolorscale=autocolorscale,
-            coloraxis=coloraxis,
-            colorbar=colorbar,
-            colorscale=colorscale,
-            customdata=customdata,
-            customdatasrc=customdatasrc,
-            featureidkey=featureidkey,
-            geo=geo,
-            geojson=geojson,
-            hoverinfo=hoverinfo,
-            hoverinfosrc=hoverinfosrc,
-            hoverlabel=hoverlabel,
-            hovertemplate=hovertemplate,
-            hovertemplatesrc=hovertemplatesrc,
-            hovertext=hovertext,
-            hovertextsrc=hovertextsrc,
-            ids=ids,
-            idssrc=idssrc,
-            legend=legend,
-            legendgroup=legendgroup,
-            legendgrouptitle=legendgrouptitle,
-            legendrank=legendrank,
-            legendwidth=legendwidth,
-            locationmode=locationmode,
-            locations=locations,
-            locationssrc=locationssrc,
-            marker=marker,
-            meta=meta,
-            metasrc=metasrc,
-            name=name,
-            reversescale=reversescale,
-            selected=selected,
-            selectedpoints=selectedpoints,
-            showlegend=showlegend,
-            showscale=showscale,
-            stream=stream,
-            text=text,
-            textsrc=textsrc,
-            uid=uid,
-            uirevision=uirevision,
-            unselected=unselected,
-            visible=visible,
-            z=z,
-            zauto=zauto,
-            zmax=zmax,
-            zmid=zmid,
-            zmin=zmin,
-            zsrc=zsrc,
-            **kwargs,
-        )
+        # Use a dict to avoid setting default/None values on the trace.
+        argdict = {
+            "autocolorscale": autocolorscale,
+            "coloraxis": coloraxis,
+            "colorbar": colorbar,
+            "colorscale": colorscale,
+            "customdata": customdata,
+            "customdatasrc": customdatasrc,
+            "featureidkey": featureidkey,
+            "geo": geo,
+            "geojson": geojson,
+            "hoverinfo": hoverinfo,
+            "hoverinfosrc": hoverinfosrc,
+            "hoverlabel": hoverlabel,
+            "hovertemplate": hovertemplate,
+            "hovertemplatesrc": hovertemplatesrc,
+            "hovertext": hovertext,
+            "hovertextsrc": hovertextsrc,
+            "ids": ids,
+            "idssrc": idssrc,
+            "legend": legend,
+            "legendgroup": legendgroup,
+            "legendgrouptitle": legendgrouptitle,
+            "legendrank": legendrank,
+            "legendwidth": legendwidth,
+            "locationmode": locationmode,
+            "locations": locations,
+            "locationssrc": locationssrc,
+            "marker": marker,
+            "meta": meta,
+            "metasrc": metasrc,
+            "name": name,
+            "reversescale": reversescale,
+            "selected": selected,
+            "selectedpoints": selectedpoints,
+            "showlegend": showlegend,
+            "showscale": showscale,
+            "stream": stream,
+            "text": text,
+            "textsrc": textsrc,
+            "uid": uid,
+            "uirevision": uirevision,
+            "unselected": unselected,
+            "visible": visible,
+            "z": z,
+            "zauto": zauto,
+            "zmax": zmax,
+            "zmid": zmid,
+            "zmin": zmin,
+            "zsrc": zsrc,
+        }
+        # Merge in any unknown keyword args (usually uncommon)
+        if kwargs:
+            argdict.update(kwargs)
+        # Remove any key with value None
+        filtered = {k: v for k, v in argdict.items() if v is not None}
+        # Construct the trace
+        new_trace = Choropleth(**filtered)
         return self.add_trace(new_trace, row=row, col=col)
 
     def add_choroplethmap(
