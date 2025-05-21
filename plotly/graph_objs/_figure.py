@@ -14204,59 +14204,21 @@ class Figure(BaseFigure):
         """
         from plotly.graph_objs import Scattercarpet
 
-        new_trace = Scattercarpet(
-            a=a,
-            asrc=asrc,
-            b=b,
-            bsrc=bsrc,
-            carpet=carpet,
-            connectgaps=connectgaps,
-            customdata=customdata,
-            customdatasrc=customdatasrc,
-            fill=fill,
-            fillcolor=fillcolor,
-            hoverinfo=hoverinfo,
-            hoverinfosrc=hoverinfosrc,
-            hoverlabel=hoverlabel,
-            hoveron=hoveron,
-            hovertemplate=hovertemplate,
-            hovertemplatesrc=hovertemplatesrc,
-            hovertext=hovertext,
-            hovertextsrc=hovertextsrc,
-            ids=ids,
-            idssrc=idssrc,
-            legend=legend,
-            legendgroup=legendgroup,
-            legendgrouptitle=legendgrouptitle,
-            legendrank=legendrank,
-            legendwidth=legendwidth,
-            line=line,
-            marker=marker,
-            meta=meta,
-            metasrc=metasrc,
-            mode=mode,
-            name=name,
-            opacity=opacity,
-            selected=selected,
-            selectedpoints=selectedpoints,
-            showlegend=showlegend,
-            stream=stream,
-            text=text,
-            textfont=textfont,
-            textposition=textposition,
-            textpositionsrc=textpositionsrc,
-            textsrc=textsrc,
-            texttemplate=texttemplate,
-            texttemplatesrc=texttemplatesrc,
-            uid=uid,
-            uirevision=uirevision,
-            unselected=unselected,
-            visible=visible,
-            xaxis=xaxis,
-            yaxis=yaxis,
-            zorder=zorder,
-            **kwargs,
+        # Local helper to filter out None values and add kwargs
+        def _filter_params(local_vars, keys_to_drop):
+            # Converts input dict, drops keys in keys_to_drop and filters Nones
+            return {k: v for k, v in local_vars.items() if k not in keys_to_drop and v is not None}
+
+        # Gather locals and filter
+        params = locals()
+        scattercarpet_keys = (
+            "row", "col", "secondary_y", "kwargs", "self"
         )
+        trace_args = _filter_params(params, scattercarpet_keys)
+        if kwargs:
+            trace_args.update(kwargs)
+
+        new_trace = Scattercarpet(**trace_args)
         return self.add_trace(new_trace, row=row, col=col, secondary_y=secondary_y)
 
     def add_scattergeo(
