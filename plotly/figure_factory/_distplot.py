@@ -286,14 +286,10 @@ class _Distplot(object):
         self.bin_size = bin_size
         self.show_hist = show_hist
         self.show_curve = show_curve
-        self.trace_number = len(hist_data)
-        if rug_text:
-            self.rug_text = rug_text
-        else:
-            self.rug_text = [None] * self.trace_number
+        self.trace_number = trace_number = len(hist_data)
+        self.rug_text = rug_text if rug_text else [None] * trace_number
 
-        self.start = []
-        self.end = []
+        # Preallocate colors
         if colors:
             self.colors = colors
         else:
@@ -309,12 +305,12 @@ class _Distplot(object):
                 "rgb(188, 189, 34)",
                 "rgb(23, 190, 207)",
             ]
-        self.curve_x = [None] * self.trace_number
-        self.curve_y = [None] * self.trace_number
 
-        for trace in self.hist_data:
-            self.start.append(min(trace) * 1.0)
-            self.end.append(max(trace) * 1.0)
+        # Precompute start/end using list comprehension for speed
+        self.start = [float(min(trace)) for trace in hist_data]
+        self.end = [float(max(trace)) for trace in hist_data]
+        self.curve_x = [None] * trace_number
+        self.curve_y = [None] * trace_number
 
     def make_hist(self):
         """
@@ -388,35 +384,60 @@ class _Distplot(object):
 
         :rtype (list) curve: list of normal curve representations
         """
-        curve = [None] * self.trace_number
-        mean = [None] * self.trace_number
-        sd = [None] * self.trace_number
+        import plotly.figure_factory._distplot as _dp
+        scipy_stats = _dp.scipy_stats
+        ALTERNATIVE_HISTNORM = _dp.ALTERNATIVE_HISTNORM
 
-        for index in range(self.trace_number):
-            mean[index], sd[index] = scipy_stats.norm.fit(self.hist_data[index])
-            self.curve_x[index] = [
-                self.start[index] + x * (self.end[index] - self.start[index]) / 500
-                for x in range(500)
-            ]
-            self.curve_y[index] = scipy_stats.norm.pdf(
-                self.curve_x[index], loc=mean[index], scale=sd[index]
-            )
+        trace_number = self.trace_number
+        start = self.start
+        end = self.end
+        hist_data = self.hist_data
+        group_labels = self.group_labels
+        colors = self.colors
+        histnorm = self.histnorm
+        bin_size = self.bin_size
+        show_hist = self.show_hist
 
-            if self.histnorm == ALTERNATIVE_HISTNORM:
-                self.curve_y[index] *= self.bin_size[index]
+        curve_x = self.curve_x
+        curve_y = self.curve_y
 
-        for index in range(self.trace_number):
-            curve[index] = dict(
+        # Preallocate curve, mean, sd for all traces
+        curve = [None] * trace_number
+        mean_sd_list = [scipy_stats.norm.fit(hist_data[i]) for i in range(trace_number)]
+
+        # Precompute for performance and reduce attribute lookups
+        x_points = 500
+        for i in range(trace_number):
+            mean, sd = mean_sd_list[i]
+            s = start[i]
+            e = end[i]
+            # Generate equidistant points for x
+            delta = (e - s) / x_points
+            points = [s + j * delta for j in range(x_points)]
+            curve_x[i] = points
+            # Compute PDF for all those points at once (vectorized in scipy)
+            y = scipy_stats.norm.pdf(points, loc=mean, scale=sd)
+
+            if histnorm == ALTERNATIVE_HISTNORM:
+                # This is usually a numpy array or array-like, * not a python list
+                y = y * bin_size[i]
+            curve_y[i] = y
+
+        # Construct curve dicts in a single comprehension
+        color_count = len(colors)
+        legend_flag = not show_hist
+        for i in range(trace_number):
+            curve[i] = dict(
                 type="scatter",
-                x=self.curve_x[index],
-                y=self.curve_y[index],
+                x=curve_x[i],
+                y=curve_y[i],
                 xaxis="x1",
                 yaxis="y1",
                 mode="lines",
-                name=self.group_labels[index],
-                legendgroup=self.group_labels[index],
-                showlegend=False if self.show_hist else True,
-                marker=dict(color=self.colors[index % len(self.colors)]),
+                name=group_labels[i],
+                legendgroup=group_labels[i],
+                showlegend=legend_flag,
+                marker=dict(color=colors[i % color_count]),
             )
         return curve
 
