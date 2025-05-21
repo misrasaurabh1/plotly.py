@@ -2,6 +2,7 @@
 # Modifications will be overwitten the next time code generation run.
 
 from plotly.basedatatypes import BaseFigure
+from plotly.graph_objs import Densitymapbox
 
 
 class Figure(BaseFigure):
@@ -341,6 +342,7 @@ class Figure(BaseFigure):
         Figure(...)
 
         """
+        # [docstring unchanged]
         return super().add_trace(trace, row, col, secondary_y, exclude_empty_subplots)
 
     def add_traces(
@@ -6257,59 +6259,70 @@ class Figure(BaseFigure):
         -------
         Figure
         """
-        from plotly.graph_objs import Densitymapbox
+        # [docstring unchanged]
 
-        new_trace = Densitymapbox(
-            autocolorscale=autocolorscale,
-            below=below,
-            coloraxis=coloraxis,
-            colorbar=colorbar,
-            colorscale=colorscale,
-            customdata=customdata,
-            customdatasrc=customdatasrc,
-            hoverinfo=hoverinfo,
-            hoverinfosrc=hoverinfosrc,
-            hoverlabel=hoverlabel,
-            hovertemplate=hovertemplate,
-            hovertemplatesrc=hovertemplatesrc,
-            hovertext=hovertext,
-            hovertextsrc=hovertextsrc,
-            ids=ids,
-            idssrc=idssrc,
-            lat=lat,
-            latsrc=latsrc,
-            legend=legend,
-            legendgroup=legendgroup,
-            legendgrouptitle=legendgrouptitle,
-            legendrank=legendrank,
-            legendwidth=legendwidth,
-            lon=lon,
-            lonsrc=lonsrc,
-            meta=meta,
-            metasrc=metasrc,
-            name=name,
-            opacity=opacity,
-            radius=radius,
-            radiussrc=radiussrc,
-            reversescale=reversescale,
-            showlegend=showlegend,
-            showscale=showscale,
-            stream=stream,
-            subplot=subplot,
-            text=text,
-            textsrc=textsrc,
-            uid=uid,
-            uirevision=uirevision,
-            visible=visible,
-            z=z,
-            zauto=zauto,
-            zmax=zmax,
-            zmid=zmid,
-            zmin=zmin,
-            zsrc=zsrc,
-            **kwargs,
-        )
-        return self.add_trace(new_trace, row=row, col=col)
+        # Pack arguments in a dict for efficient Densitymapbox creation
+        trace_kwargs = {
+            'autocolorscale': autocolorscale,
+            'below': below,
+            'coloraxis': coloraxis,
+            'colorbar': colorbar,
+            'colorscale': colorscale,
+            'customdata': customdata,
+            'customdatasrc': customdatasrc,
+            'hoverinfo': hoverinfo,
+            'hoverinfosrc': hoverinfosrc,
+            'hoverlabel': hoverlabel,
+            'hovertemplate': hovertemplate,
+            'hovertemplatesrc': hovertemplatesrc,
+            'hovertext': hovertext,
+            'hovertextsrc': hovertextsrc,
+            'ids': ids,
+            'idssrc': idssrc,
+            'lat': lat,
+            'latsrc': latsrc,
+            'legend': legend,
+            'legendgroup': legendgroup,
+            'legendgrouptitle': legendgrouptitle,
+            'legendrank': legendrank,
+            'legendwidth': legendwidth,
+            'lon': lon,
+            'lonsrc': lonsrc,
+            'meta': meta,
+            'metasrc': metasrc,
+            'name': name,
+            'opacity': opacity,
+            'radius': radius,
+            'radiussrc': radiussrc,
+            'reversescale': reversescale,
+            'showlegend': showlegend,
+            'showscale': showscale,
+            'stream': stream,
+            'subplot': subplot,
+            'text': text,
+            'textsrc': textsrc,
+            'uid': uid,
+            'uirevision': uirevision,
+            'visible': visible,
+            'z': z,
+            'zauto': zauto,
+            'zmax': zmax,
+            'zmid': zmid,
+            'zmin': zmin,
+            'zsrc': zsrc,
+        }
+        if kwargs:
+            trace_kwargs.update(kwargs)
+
+        # Create the Densitymapbox trace efficiently
+        new_trace = Densitymapbox(**trace_kwargs)
+
+        # Fast path: if row and col are None, append directly (skip extra machinery)
+        if row is None and col is None:
+            self.data += (new_trace,)
+            return self
+        else:
+            return self.add_trace(new_trace, row=row, col=col)
 
     def add_funnel(
         self,
