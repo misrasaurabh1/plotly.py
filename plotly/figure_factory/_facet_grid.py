@@ -32,11 +32,7 @@ CUSTOM_LABEL_ERROR = (
 
 
 def _is_flipped(num):
-    if num >= THRES_FOR_FLIPPED_FACET_TITLES:
-        flipped = True
-    else:
-        flipped = False
-    return flipped
+    return num >= THRES_FOR_FLIPPED_FACET_TITLES
 
 
 def _return_label(original_label, facet_labels, facet_var):
