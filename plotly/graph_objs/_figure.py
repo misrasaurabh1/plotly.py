@@ -2,6 +2,7 @@
 # Modifications will be overwitten the next time code generation run.
 
 from plotly.basedatatypes import BaseFigure
+from plotly.graph_objs import Pie
 
 
 class Figure(BaseFigure):
@@ -12511,64 +12512,13 @@ class Figure(BaseFigure):
         -------
         Figure
         """
-        from plotly.graph_objs import Pie
-
-        new_trace = Pie(
-            automargin=automargin,
-            customdata=customdata,
-            customdatasrc=customdatasrc,
-            direction=direction,
-            dlabel=dlabel,
-            domain=domain,
-            hole=hole,
-            hoverinfo=hoverinfo,
-            hoverinfosrc=hoverinfosrc,
-            hoverlabel=hoverlabel,
-            hovertemplate=hovertemplate,
-            hovertemplatesrc=hovertemplatesrc,
-            hovertext=hovertext,
-            hovertextsrc=hovertextsrc,
-            ids=ids,
-            idssrc=idssrc,
-            insidetextfont=insidetextfont,
-            insidetextorientation=insidetextorientation,
-            label0=label0,
-            labels=labels,
-            labelssrc=labelssrc,
-            legend=legend,
-            legendgroup=legendgroup,
-            legendgrouptitle=legendgrouptitle,
-            legendrank=legendrank,
-            legendwidth=legendwidth,
-            marker=marker,
-            meta=meta,
-            metasrc=metasrc,
-            name=name,
-            opacity=opacity,
-            outsidetextfont=outsidetextfont,
-            pull=pull,
-            pullsrc=pullsrc,
-            rotation=rotation,
-            scalegroup=scalegroup,
-            showlegend=showlegend,
-            sort=sort,
-            stream=stream,
-            text=text,
-            textfont=textfont,
-            textinfo=textinfo,
-            textposition=textposition,
-            textpositionsrc=textpositionsrc,
-            textsrc=textsrc,
-            texttemplate=texttemplate,
-            texttemplatesrc=texttemplatesrc,
-            title=title,
-            uid=uid,
-            uirevision=uirevision,
-            values=values,
-            valuessrc=valuessrc,
-            visible=visible,
-            **kwargs,
-        )
+        # Optimization: Create Pie with only non-None values to minimize attribute setting overhead
+        # (including **kwargs)
+        # Note: locals() includes 'self', row, col, and kwargs -- need to exclude those.
+        _exclude = {'self', 'row', 'col', 'kwargs'}
+        pie_args = {k: v for k, v in locals().items() if k not in _exclude and v is not None}
+        pie_args.update(kwargs)
+        new_trace = Pie(**pie_args)
         return self.add_trace(new_trace, row=row, col=col)
 
     def add_sankey(
