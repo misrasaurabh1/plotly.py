@@ -278,12 +278,25 @@ def get_axis_mirror(main_spine, mirror_spine):
 
 
 def get_bar_gap(bar_starts, bar_ends, tol=1e-10):
-    if len(bar_starts) == len(bar_ends) and len(bar_starts) > 1:
-        sides1 = bar_starts[1:]
-        sides2 = bar_ends[:-1]
-        gaps = [s2 - s1 for s2, s1 in zip(sides1, sides2)]
-        gap0 = gaps[0]
-        uniform = all([abs(gap0 - gap) < tol for gap in gaps])
+    # Check validity and trivial case
+    n = len(bar_starts)
+    if n == len(bar_ends) and n > 1:
+        it1 = iter(bar_starts)
+        it2 = iter(bar_ends)
+        next(it1)  # skip first of bar_starts
+        last_bar_end = next(it2)  # get first of bar_ends
+
+        gap0 = next(it1) - last_bar_end
+        if n == 2:
+            # Only one gap, trivially uniform
+            return gap0
+
+        uniform = True
+        for bar_start, bar_end in zip(it1, it2):
+            gap = bar_start - bar_end
+            if abs(gap0 - gap) >= tol:
+                uniform = False
+                break
         if uniform:
             return gap0
 
