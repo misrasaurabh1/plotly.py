@@ -2,6 +2,7 @@
 # Modifications will be overwitten the next time code generation run.
 
 from plotly.basedatatypes import BaseFigure
+from plotly.graph_objs import Scatterternary
 
 
 class Figure(BaseFigure):
@@ -17544,62 +17545,64 @@ class Figure(BaseFigure):
         -------
         Figure
         """
-        from plotly.graph_objs import Scatterternary
+        # Fast-path: create dict only once, pass all args as big dict
+        params = {
+            'a': a,
+            'asrc': asrc,
+            'b': b,
+            'bsrc': bsrc,
+            'c': c,
+            'cliponaxis': cliponaxis,
+            'connectgaps': connectgaps,
+            'csrc': csrc,
+            'customdata': customdata,
+            'customdatasrc': customdatasrc,
+            'fill': fill,
+            'fillcolor': fillcolor,
+            'hoverinfo': hoverinfo,
+            'hoverinfosrc': hoverinfosrc,
+            'hoverlabel': hoverlabel,
+            'hoveron': hoveron,
+            'hovertemplate': hovertemplate,
+            'hovertemplatesrc': hovertemplatesrc,
+            'hovertext': hovertext,
+            'hovertextsrc': hovertextsrc,
+            'ids': ids,
+            'idssrc': idssrc,
+            'legend': legend,
+            'legendgroup': legendgroup,
+            'legendgrouptitle': legendgrouptitle,
+            'legendrank': legendrank,
+            'legendwidth': legendwidth,
+            'line': line,
+            'marker': marker,
+            'meta': meta,
+            'metasrc': metasrc,
+            'mode': mode,
+            'name': name,
+            'opacity': opacity,
+            'selected': selected,
+            'selectedpoints': selectedpoints,
+            'showlegend': showlegend,
+            'stream': stream,
+            'subplot': subplot,
+            'sum': sum,
+            'text': text,
+            'textfont': textfont,
+            'textposition': textposition,
+            'textpositionsrc': textpositionsrc,
+            'textsrc': textsrc,
+            'texttemplate': texttemplate,
+            'texttemplatesrc': texttemplatesrc,
+            'uid': uid,
+            'uirevision': uirevision,
+            'unselected': unselected,
+            'visible': visible,
+        }
+        if kwargs:
+            params.update(kwargs)
 
-        new_trace = Scatterternary(
-            a=a,
-            asrc=asrc,
-            b=b,
-            bsrc=bsrc,
-            c=c,
-            cliponaxis=cliponaxis,
-            connectgaps=connectgaps,
-            csrc=csrc,
-            customdata=customdata,
-            customdatasrc=customdatasrc,
-            fill=fill,
-            fillcolor=fillcolor,
-            hoverinfo=hoverinfo,
-            hoverinfosrc=hoverinfosrc,
-            hoverlabel=hoverlabel,
-            hoveron=hoveron,
-            hovertemplate=hovertemplate,
-            hovertemplatesrc=hovertemplatesrc,
-            hovertext=hovertext,
-            hovertextsrc=hovertextsrc,
-            ids=ids,
-            idssrc=idssrc,
-            legend=legend,
-            legendgroup=legendgroup,
-            legendgrouptitle=legendgrouptitle,
-            legendrank=legendrank,
-            legendwidth=legendwidth,
-            line=line,
-            marker=marker,
-            meta=meta,
-            metasrc=metasrc,
-            mode=mode,
-            name=name,
-            opacity=opacity,
-            selected=selected,
-            selectedpoints=selectedpoints,
-            showlegend=showlegend,
-            stream=stream,
-            subplot=subplot,
-            sum=sum,
-            text=text,
-            textfont=textfont,
-            textposition=textposition,
-            textpositionsrc=textpositionsrc,
-            textsrc=textsrc,
-            texttemplate=texttemplate,
-            texttemplatesrc=texttemplatesrc,
-            uid=uid,
-            uirevision=uirevision,
-            unselected=unselected,
-            visible=visible,
-            **kwargs,
-        )
+        new_trace = Scatterternary(**params)
         return self.add_trace(new_trace, row=row, col=col)
 
     def add_splom(
