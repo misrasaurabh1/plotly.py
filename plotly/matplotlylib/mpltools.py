@@ -547,28 +547,51 @@ def mpl_dates_to_datestrings(dates, mpl_formatter):
     """
     _dates = dates
 
+    # Try vectorized (numpy) operations if possible
+    try:
+        import numpy as np
+        is_np = True
+    except ImportError:
+        is_np = False
+
     # this is a pandas datetime formatter, times show up in floating point days
     # since the epoch (1970-01-01T00:00:00+00:00)
     if mpl_formatter == "TimeSeries_DateFormatter":
         try:
-            dates = matplotlib.dates.epoch2num([date * 24 * 60 * 60 for date in dates])
+            if is_np:
+                dates_fp = np.asarray(dates, dtype=float) * 24 * 60 * 60
+                dates = matplotlib.dates.epoch2num(dates_fp)
+            else:
+                # fallback to original list comprehension
+                dates = matplotlib.dates.epoch2num([date * 24 * 60 * 60 for date in dates])
             dates = matplotlib.dates.num2date(dates)
-        except:
+        except Exception:
             return _dates
-
     # the rest of mpl dates are in floating point days since
     # (0001-01-01T00:00:00+00:00) + 1. I.e., (0001-01-01T00:00:00+00:00) == 1.0
     # according to mpl --> try num2date(1)
     else:
         try:
-            dates = matplotlib.dates.num2date(dates)
-        except:
+            # Use np.asarray for vectorized num2date if possible
+            if is_np:
+                dates = matplotlib.dates.num2date(np.asarray(dates, dtype=float))
+            else:
+                dates = matplotlib.dates.num2date(dates)
+        except Exception:
             return _dates
 
-    time_stings = [
-        " ".join(date.isoformat().split("+")[0].split("T")) for date in dates
-    ]
-    return time_stings
+    # Efficient string formatting; avoids repeated splitting
+    time_strings = []
+    for date in dates:
+        # isoformat() always yields YYYY-MM-DDTHH:MM:SS[.ffffff][+HH:MM], so
+        # split once at '+' (if timezone info present), then once at 'T'
+        s = date.isoformat()
+        if '+' in s:
+            s = s.split('+', 1)[0]
+        elif '-' in s[19:]:  # handles possible "-HH:MM" if aware
+            s = s[:19]
+        time_strings.append(s.replace('T', ' '))
+    return time_strings
 
 
 # dashed is dash in matplotlib
