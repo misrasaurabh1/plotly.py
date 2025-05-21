@@ -2,6 +2,7 @@
 # Modifications will be overwitten the next time code generation run.
 
 from plotly.basedatatypes import BaseFigure
+from plotly.graph_objs import Histogram
 
 
 class Figure(BaseFigure):
@@ -8243,77 +8244,17 @@ class Figure(BaseFigure):
         -------
         Figure
         """
-        from plotly.graph_objs import Histogram
+        # Only include parameters that are not None
+        params = {}
+        local_vars = locals()
+        # These are the 'meta' arguments; do not pass to Histogram
+        subplot_args = {"row", "col", "secondary_y", "self", "kwargs"}
+        for k, v in local_vars.items():
+            if k not in subplot_args and v is not None:
+                params[k] = v
+        params.update(kwargs)
 
-        new_trace = Histogram(
-            alignmentgroup=alignmentgroup,
-            autobinx=autobinx,
-            autobiny=autobiny,
-            bingroup=bingroup,
-            cliponaxis=cliponaxis,
-            constraintext=constraintext,
-            cumulative=cumulative,
-            customdata=customdata,
-            customdatasrc=customdatasrc,
-            error_x=error_x,
-            error_y=error_y,
-            histfunc=histfunc,
-            histnorm=histnorm,
-            hoverinfo=hoverinfo,
-            hoverinfosrc=hoverinfosrc,
-            hoverlabel=hoverlabel,
-            hovertemplate=hovertemplate,
-            hovertemplatesrc=hovertemplatesrc,
-            hovertext=hovertext,
-            hovertextsrc=hovertextsrc,
-            ids=ids,
-            idssrc=idssrc,
-            insidetextanchor=insidetextanchor,
-            insidetextfont=insidetextfont,
-            legend=legend,
-            legendgroup=legendgroup,
-            legendgrouptitle=legendgrouptitle,
-            legendrank=legendrank,
-            legendwidth=legendwidth,
-            marker=marker,
-            meta=meta,
-            metasrc=metasrc,
-            name=name,
-            nbinsx=nbinsx,
-            nbinsy=nbinsy,
-            offsetgroup=offsetgroup,
-            opacity=opacity,
-            orientation=orientation,
-            outsidetextfont=outsidetextfont,
-            selected=selected,
-            selectedpoints=selectedpoints,
-            showlegend=showlegend,
-            stream=stream,
-            text=text,
-            textangle=textangle,
-            textfont=textfont,
-            textposition=textposition,
-            textsrc=textsrc,
-            texttemplate=texttemplate,
-            uid=uid,
-            uirevision=uirevision,
-            unselected=unselected,
-            visible=visible,
-            x=x,
-            xaxis=xaxis,
-            xbins=xbins,
-            xcalendar=xcalendar,
-            xhoverformat=xhoverformat,
-            xsrc=xsrc,
-            y=y,
-            yaxis=yaxis,
-            ybins=ybins,
-            ycalendar=ycalendar,
-            yhoverformat=yhoverformat,
-            ysrc=ysrc,
-            zorder=zorder,
-            **kwargs,
-        )
+        new_trace = Histogram(**params)
         return self.add_trace(new_trace, row=row, col=col, secondary_y=secondary_y)
 
     def add_histogram2d(
