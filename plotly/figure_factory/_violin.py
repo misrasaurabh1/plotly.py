@@ -124,7 +124,9 @@ def make_XAxis(xaxis_title, xaxis_range):
     """
     Makes the x-axis for a violin plot.
     """
-    xaxis = graph_objs.layout.XAxis(
+    # Consolidate attribute creation; this is already quite minimal.
+    # If this is called many times, consider a cache, but generally allocation cost is dominated by Plotly internals.
+    return graph_objs.layout.XAxis(
         title=xaxis_title,
         range=xaxis_range,
         showgrid=False,
@@ -134,14 +136,13 @@ def make_XAxis(xaxis_title, xaxis_range):
         ticks="",
         showticklabels=False,
     )
-    return xaxis
 
 
 def make_YAxis(yaxis_title):
     """
     Makes the y-axis for a violin plot.
     """
-    yaxis = graph_objs.layout.YAxis(
+    return graph_objs.layout.YAxis(
         title=yaxis_title,
         showticklabels=True,
         autorange=True,
@@ -151,7 +152,6 @@ def make_YAxis(yaxis_title):
         showgrid=False,
         mirror=False,
     )
-    return yaxis
 
 
 def violinplot(vals, fillcolor="#1f77b4", rugplot=True):
@@ -159,14 +159,15 @@ def violinplot(vals, fillcolor="#1f77b4", rugplot=True):
     Refer to FigureFactory.create_violin() for docstring.
     """
     vals = np.asarray(vals, float)
-    #  summary statistics
-    vals_min = calc_stats(vals)["min"]
-    vals_max = calc_stats(vals)["max"]
-    q1 = calc_stats(vals)["q1"]
-    q2 = calc_stats(vals)["q2"]
-    q3 = calc_stats(vals)["q3"]
-    d1 = calc_stats(vals)["d1"]
-    d2 = calc_stats(vals)["d2"]
+    # Compute all stats with a single call
+    stats = calc_stats(vals)
+    vals_min = stats["min"]
+    vals_max = stats["max"]
+    q1 = stats["q1"]
+    q2 = stats["q2"]
+    q3 = stats["q3"]
+    d1 = stats["d1"]
+    d2 = stats["d2"]
 
     # kernel density estimation of pdf
     pdf = scipy_stats.gaussian_kde(vals)
@@ -213,11 +214,8 @@ def violin_no_colorscale(
 
     """
 
-    # collect all group names
-    group_name = []
-    for name in data[group_header]:
-        if name not in group_name:
-            group_name.append(name)
+    # Efficiently collect all group names as a numpy array
+    group_name = data[group_header].unique().tolist()
     if sort:
         group_name.sort()
 
@@ -229,19 +227,19 @@ def violin_no_colorscale(
     )
     color_index = 0
     for k, gr in enumerate(group_name):
+        # Efficient group lookup
         vals = np.asarray(gb.get_group(gr)[data_header], float)
         if color_index >= len(colors):
             color_index = 0
         plot_data, plot_xrange = violinplot(
             vals, fillcolor=colors[color_index], rugplot=rugplot
         )
-        layout = graph_objs.Layout()
 
         for item in plot_data:
             fig.append_trace(item, 1, k + 1)
         color_index += 1
 
-        # add violin plot labels
+        # add violin plot labels (axis)
         fig["layout"].update(
             {"xaxis{}".format(k + 1): make_XAxis(group_name[k], plot_xrange)}
         )
