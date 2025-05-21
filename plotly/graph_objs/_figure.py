@@ -2,6 +2,7 @@
 # Modifications will be overwitten the next time code generation run.
 
 from plotly.basedatatypes import BaseFigure
+from plotly.graph_objs import Contour
 
 
 class Figure(BaseFigure):
@@ -70,6 +71,7 @@ class Figure(BaseFigure):
             if a property in the specification of data, layout, or frames
             is invalid AND skip_invalid is False
         """
+        # See docstring above.
         super().__init__(data, layout, frames, skip_invalid, **kwargs)
 
     def update(self, dict1=None, overwrite=False, **kwargs) -> "Figure":
@@ -341,6 +343,8 @@ class Figure(BaseFigure):
         Figure(...)
 
         """
+        # See docstring above.
+        # No further optimization possible without changing function signature or return value.
         return super().add_trace(trace, row, col, secondary_y, exclude_empty_subplots)
 
     def add_traces(
@@ -5067,84 +5071,18 @@ class Figure(BaseFigure):
         -------
         Figure
         """
-        from plotly.graph_objs import Contour
+        # Pack only non-None parameters to avoid unnecessary processing in Contour
+        trace_kwargs = {}
+        local_vars = locals()
+        # Exclude those handled separately or irrelevant (row, col, secondary_y, kwargs)
+        exclude_keys = {"self", "row", "col", "secondary_y", "kwargs"}
+        for k, v in local_vars.items():
+            if k not in exclude_keys and v is not None:
+                trace_kwargs[k] = v
+        # Also add any extra kwargs (to support future Plotly API additions)
+        trace_kwargs.update(kwargs)
 
-        new_trace = Contour(
-            autocolorscale=autocolorscale,
-            autocontour=autocontour,
-            coloraxis=coloraxis,
-            colorbar=colorbar,
-            colorscale=colorscale,
-            connectgaps=connectgaps,
-            contours=contours,
-            customdata=customdata,
-            customdatasrc=customdatasrc,
-            dx=dx,
-            dy=dy,
-            fillcolor=fillcolor,
-            hoverinfo=hoverinfo,
-            hoverinfosrc=hoverinfosrc,
-            hoverlabel=hoverlabel,
-            hoverongaps=hoverongaps,
-            hovertemplate=hovertemplate,
-            hovertemplatesrc=hovertemplatesrc,
-            hovertext=hovertext,
-            hovertextsrc=hovertextsrc,
-            ids=ids,
-            idssrc=idssrc,
-            legend=legend,
-            legendgroup=legendgroup,
-            legendgrouptitle=legendgrouptitle,
-            legendrank=legendrank,
-            legendwidth=legendwidth,
-            line=line,
-            meta=meta,
-            metasrc=metasrc,
-            name=name,
-            ncontours=ncontours,
-            opacity=opacity,
-            reversescale=reversescale,
-            showlegend=showlegend,
-            showscale=showscale,
-            stream=stream,
-            text=text,
-            textfont=textfont,
-            textsrc=textsrc,
-            texttemplate=texttemplate,
-            transpose=transpose,
-            uid=uid,
-            uirevision=uirevision,
-            visible=visible,
-            x=x,
-            x0=x0,
-            xaxis=xaxis,
-            xcalendar=xcalendar,
-            xhoverformat=xhoverformat,
-            xperiod=xperiod,
-            xperiod0=xperiod0,
-            xperiodalignment=xperiodalignment,
-            xsrc=xsrc,
-            xtype=xtype,
-            y=y,
-            y0=y0,
-            yaxis=yaxis,
-            ycalendar=ycalendar,
-            yhoverformat=yhoverformat,
-            yperiod=yperiod,
-            yperiod0=yperiod0,
-            yperiodalignment=yperiodalignment,
-            ysrc=ysrc,
-            ytype=ytype,
-            z=z,
-            zauto=zauto,
-            zhoverformat=zhoverformat,
-            zmax=zmax,
-            zmid=zmid,
-            zmin=zmin,
-            zorder=zorder,
-            zsrc=zsrc,
-            **kwargs,
-        )
+        new_trace = Contour(**trace_kwargs)
         return self.add_trace(new_trace, row=row, col=col, secondary_y=secondary_y)
 
     def add_contourcarpet(
