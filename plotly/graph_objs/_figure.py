@@ -2,6 +2,7 @@
 # Modifications will be overwitten the next time code generation run.
 
 from plotly.basedatatypes import BaseFigure
+from plotly.graph_objs import Parcats
 
 
 class Figure(BaseFigure):
@@ -11927,34 +11928,36 @@ class Figure(BaseFigure):
         -------
         Figure
         """
-        from plotly.graph_objs import Parcats
-
-        new_trace = Parcats(
-            arrangement=arrangement,
-            bundlecolors=bundlecolors,
-            counts=counts,
-            countssrc=countssrc,
-            dimensions=dimensions,
-            dimensiondefaults=dimensiondefaults,
-            domain=domain,
-            hoverinfo=hoverinfo,
-            hoveron=hoveron,
-            hovertemplate=hovertemplate,
-            labelfont=labelfont,
-            legendgrouptitle=legendgrouptitle,
-            legendwidth=legendwidth,
-            line=line,
-            meta=meta,
-            metasrc=metasrc,
-            name=name,
-            sortpaths=sortpaths,
-            stream=stream,
-            tickfont=tickfont,
-            uid=uid,
-            uirevision=uirevision,
-            visible=visible,
-            **kwargs,
-        )
+        # --- Optimization: build constructor args as dict then unpack with ** ---
+        parcats_args = {
+            "arrangement": arrangement,
+            "bundlecolors": bundlecolors,
+            "counts": counts,
+            "countssrc": countssrc,
+            "dimensions": dimensions,
+            "dimensiondefaults": dimensiondefaults,
+            "domain": domain,
+            "hoverinfo": hoverinfo,
+            "hoveron": hoveron,
+            "hovertemplate": hovertemplate,
+            "labelfont": labelfont,
+            "legendgrouptitle": legendgrouptitle,
+            "legendwidth": legendwidth,
+            "line": line,
+            "meta": meta,
+            "metasrc": metasrc,
+            "name": name,
+            "sortpaths": sortpaths,
+            "stream": stream,
+            "tickfont": tickfont,
+            "uid": uid,
+            "uirevision": uirevision,
+            "visible": visible,
+        }
+        if kwargs:
+            parcats_args.update(kwargs)
+        # Construct Parcats instance using the dict, avoiding per-arg Python call overhead
+        new_trace = Parcats(**parcats_args)
         return self.add_trace(new_trace, row=row, col=col)
 
     def add_parcoords(
