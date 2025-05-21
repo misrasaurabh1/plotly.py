@@ -22383,6 +22383,14 @@ class Figure(BaseFigure):
             objects that satisfy all of the specified selection criteria
         """
 
+        # Fast path for default case (no selector, row, or col filtering).
+        if selector is None and row is None and col is None:
+            layout = self.layout
+            # Filter keys that start with "ternary" and are not None
+            ternary_keys = [k for k in layout if k.startswith("ternary") and layout[k] is not None]
+            # Use list and generator to avoid intermediate lists if possible
+            return (layout[k] for k in ternary_keys)
+        # Fallback to the slower generic logic for all other cases
         return self._select_layout_subplots_by_prefix("ternary", selector, row, col)
 
     def for_each_ternary(self, fn, selector=None, row=None, col=None) -> "Figure":
@@ -22414,9 +22422,11 @@ class Figure(BaseFigure):
         self
             Returns the Figure object that the method was called on
         """
-        for obj in self.select_ternaries(selector=selector, row=row, col=col):
-            fn(obj)
-
+        # Use local variable for method lookup to reduce repeated attribute lookup in loop
+        ternary_iter = self.select_ternaries(selector=selector, row=row, col=col)
+        fn_local = fn
+        for obj in ternary_iter:
+            fn_local(obj)
         return self
 
     def update_ternaries(
