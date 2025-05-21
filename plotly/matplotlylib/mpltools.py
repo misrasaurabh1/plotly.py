@@ -343,7 +343,14 @@ def get_markerstyle_from_collection(props):
 
 def get_rect_xmin(data):
     """Find minimum x value from four (x,y) vertices."""
-    return min(data[0][0], data[1][0], data[2][0], data[3][0])
+    xmin = data[0][0]
+    if data[1][0] < xmin:
+        xmin = data[1][0]
+    if data[2][0] < xmin:
+        xmin = data[2][0]
+    if data[3][0] < xmin:
+        xmin = data[3][0]
+    return xmin
 
 
 def get_rect_xmax(data):
