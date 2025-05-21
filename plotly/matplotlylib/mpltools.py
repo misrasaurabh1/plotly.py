@@ -182,11 +182,14 @@ def convert_x_domain(mpl_plot_bounds, mpl_max_x_bounds):
     ** these are all specified in mpl figure coordinates
 
     """
-    mpl_x_dom = [mpl_plot_bounds[0], mpl_plot_bounds[0] + mpl_plot_bounds[2]]
-    plotting_width = mpl_max_x_bounds[1] - mpl_max_x_bounds[0]
-    x0 = (mpl_x_dom[0] - mpl_max_x_bounds[0]) / plotting_width
-    x1 = (mpl_x_dom[1] - mpl_max_x_bounds[0]) / plotting_width
-    return [x0, x1]
+    x0 = mpl_plot_bounds[0]
+    width = mpl_plot_bounds[2]
+    min_x = mpl_max_x_bounds[0]
+    max_x = mpl_max_x_bounds[1]
+    plotting_width = max_x - min_x
+    x_0 = (x0 - min_x) / plotting_width
+    x_1 = (x0 + width - min_x) / plotting_width
+    return [x_0, x_1]
 
 
 def convert_y_domain(mpl_plot_bounds, mpl_max_y_bounds):
