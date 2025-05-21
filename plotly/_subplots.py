@@ -8,6 +8,8 @@
 # little differently.
 import collections
 
+from plotly.validators import DataValidator
+
 _single_subplot_types = {"scene", "geo", "polar", "ternary", "map", "mapbox"}
 _subplot_types = set.union(_single_subplot_types, {"xy", "domain"})
 
@@ -1062,29 +1064,44 @@ def _init_subplot_domain(x_domain, y_domain):
 
 
 def _subplot_type_for_trace_type(trace_type):
-    from plotly.validators import DataValidator
+    # Fast path: Memoized results (including None results)
+    cache = _SUBPLOT_TYPE_CACHE
+    if trace_type in cache:
+        return cache[trace_type]
 
-    trace_validator = DataValidator()
+    trace_validator = _get_trace_validator()
+    # Check trace_type exists first
     if trace_type in trace_validator.class_strs_map:
         # subplot_type is a trace name, find the subplot type for trace
         trace = trace_validator.validate_coerce([{"type": trace_type}])[0]
+        # Fast membership checks
         if "domain" in trace:
-            return "domain"
+            result = "domain"
         elif "xaxis" in trace and "yaxis" in trace:
-            return "xy"
+            result = "xy"
         elif "geo" in trace:
-            return "geo"
+            result = "geo"
         elif "scene" in trace:
-            return "scene"
+            result = "scene"
         elif "subplot" in trace:
-            for t in _subplot_prop_named_subplot:
+            # inline the set constant since import not done above; use an explicit tuple for speed
+            for t in ("polar", "ternary", "map", "mapbox"):
                 try:
                     trace.subplot = t
-                    return t
+                    result = t
+                    break
                 except ValueError:
-                    pass
+                    continue
+            else:
+                result = None
+        else:
+            result = None
+    else:
+        result = None
 
-    return None
+    # Memoize also for None so future lookups are instant
+    cache[trace_type] = result
+    return result
 
 
 def _validate_coerce_subplot_type(subplot_type):
@@ -1535,3 +1552,14 @@ def _get_subplot_ref_for_trace(trace):
                 pass
 
     return None
+
+def _get_trace_validator():
+    # Lazily instantiate DataValidator once per process
+    global _TRACE_VALIDATOR
+    if _TRACE_VALIDATOR is None:
+        _TRACE_VALIDATOR = DataValidator()
+    return _TRACE_VALIDATOR
+
+_SUBPLOT_TYPE_CACHE = {}
+
+_TRACE_VALIDATOR = None
