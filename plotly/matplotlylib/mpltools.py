@@ -289,43 +289,40 @@ def get_bar_gap(bar_starts, bar_ends, tol=1e-10):
 
 
 def convert_rgba_array(color_list):
-    clean_color_list = list()
-    for c in color_list:
-        clean_color_list += [
-            dict(r=int(c[0] * 255), g=int(c[1] * 255), b=int(c[2] * 255), a=c[3])
-        ]
-    plotly_colors = list()
-    for rgba in clean_color_list:
-        plotly_colors += ["rgba({r},{g},{b},{a})".format(**rgba)]
-    if len(plotly_colors) == 1:
-        return plotly_colors[0]
-    else:
-        return plotly_colors
+    n = len(color_list)
+    if n == 1:
+        c = color_list[0]
+        rgba_str = f"rgba({int(c[0]*255)},{int(c[1]*255)},{int(c[2]*255)},{c[3]})"
+        return rgba_str
+    # Preallocate and use list comprehension for speed
+    plotly_colors = [
+        f"rgba({int(c[0]*255)},{int(c[1]*255)},{int(c[2]*255)},{c[3]})"
+        for c in color_list
+    ]
+    return plotly_colors
 
 
 def convert_path_array(path_array):
-    symbols = list()
-    for path in path_array:
-        symbols += [convert_path(path)]
-    if len(symbols) == 1:
-        return symbols[0]
-    else:
-        return symbols
+    n = len(path_array)
+    if n == 1:
+        return convert_path(path_array[0])
+    # Use list comprehension for speed
+    return [convert_path(path) for path in path_array]
 
 
 def convert_linewidth_array(width_array):
     if len(width_array) == 1:
         return width_array[0]
-    else:
-        return width_array
+    # No conversion, just return as is
+    return width_array
 
 
 def convert_size_array(size_array):
-    size = [math.sqrt(s) for s in size_array]
-    if len(size) == 1:
-        return size[0]
-    else:
-        return size
+    n = len(size_array)
+    if n == 1:
+        return math.sqrt(size_array[0])
+    # Use generator expression for lower memory usage
+    return [math.sqrt(s) for s in size_array]
 
 
 def get_markerstyle_from_collection(props):
