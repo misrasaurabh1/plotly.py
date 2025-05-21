@@ -18,22 +18,56 @@ _float_types = []
 
 
 def _vectorize_zvalue(z, mode="max"):
+    # alpha is always 255 or 0 depending on mode
     alpha = 255 if mode == "max" else 0
+
     if z is None:
         return z
-    elif np.isscalar(z):
-        return [z] * 3 + [alpha]
-    elif len(z) == 1:
-        return list(z) * 3 + [alpha]
-    elif len(z) == 3:
-        return list(z) + [alpha]
-    elif len(z) == 4:
-        return z
-    else:
-        raise ValueError(
-            "zmax can be a scalar, or an iterable of length 1, 3 or 4. "
-            "A value of %s was passed for zmax." % str(z)
-        )
+
+    # Fast path: typical integer/float
+    # Optimize issintance for native Python types first
+    if isinstance(z, (int, float, complex)):
+        return [z, z, z, alpha]
+
+    # Next, most common: sequence/iterable
+    # Use memoryview/bytes/bytearray exclusion for duck-typed iterables
+    if isinstance(z, (list, tuple, np.ndarray)):
+        z_len = len(z)
+        if z_len == 1:
+            v = z if isinstance(z, list) else list(z)
+            return v * 3 + [alpha]
+        elif z_len == 3:
+            v = z if isinstance(z, list) else list(z)
+            return v + [alpha]
+        elif z_len == 4:
+            return z
+        else:
+            # Defer to error
+            pass
+
+    # Fall back to NumPy scalar: slower path, for odd types
+    # (np.isscalar is slow and rarely needed, call only if needed)
+    if np.isscalar(z):
+        return [z, z, z, alpha]
+
+    # Try as iterable (for things that look like list/tuple but aren't)
+    try:
+        z_list = list(z)
+        z_len = len(z_list)
+        if z_len == 1:
+            return z_list * 3 + [alpha]
+        elif z_len == 3:
+            return z_list + [alpha]
+        elif z_len == 4:
+            return z
+    except Exception:
+        # Not iterable
+        pass
+
+    raise ValueError(
+        "zmax can be a scalar, or an iterable of length 1, 3 or 4. "
+        "A value of %s was passed for zmax." % str(z)
+    )
 
 
 def _infer_zmax_from_type(img):
