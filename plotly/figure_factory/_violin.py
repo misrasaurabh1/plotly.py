@@ -93,15 +93,16 @@ def make_quartiles(q1, q3):
     """
     Makes the upper and lower quartiles for a violin plot.
     """
+    # Use preconstructed constant objects for x and line
     return graph_objs.Scatter(
-        x=[0, 0],
+        x=_QUARTILES_X,
         y=[q1, q3],
         text=[
-            "lower-quartile: " + "{:0.2f}".format(q1),
-            "upper-quartile: " + "{:0.2f}".format(q3),
+            f"lower-quartile: {q1:0.2f}",
+            f"upper-quartile: {q3:0.2f}",
         ],
         mode="lines",
-        line=graph_objs.scatter.Line(width=4, color="rgb(0,0,0)"),
+        line=_LINE_OBJ,
         hoverinfo="text",
     )
 
@@ -708,3 +709,7 @@ def create_violin(
                 title,
             )
             return fig
+
+_QUARTILES_X = [0, 0]
+
+_LINE_OBJ = graph_objs.scatter.Line(width=4, color="rgb(0,0,0)")
