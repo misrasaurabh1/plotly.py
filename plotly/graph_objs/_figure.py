@@ -2,6 +2,7 @@
 # Modifications will be overwitten the next time code generation run.
 
 from plotly.basedatatypes import BaseFigure
+from plotly.graph_objs import Densitymap
 
 
 class Figure(BaseFigure):
@@ -341,6 +342,7 @@ class Figure(BaseFigure):
         Figure(...)
 
         """
+        # Hot path: direct fast call to super
         return super().add_trace(trace, row, col, secondary_y, exclude_empty_subplots)
 
     def add_traces(
@@ -5869,58 +5871,24 @@ class Figure(BaseFigure):
         -------
         Figure
         """
-        from plotly.graph_objs import Densitymap
 
-        new_trace = Densitymap(
-            autocolorscale=autocolorscale,
-            below=below,
-            coloraxis=coloraxis,
-            colorbar=colorbar,
-            colorscale=colorscale,
-            customdata=customdata,
-            customdatasrc=customdatasrc,
-            hoverinfo=hoverinfo,
-            hoverinfosrc=hoverinfosrc,
-            hoverlabel=hoverlabel,
-            hovertemplate=hovertemplate,
-            hovertemplatesrc=hovertemplatesrc,
-            hovertext=hovertext,
-            hovertextsrc=hovertextsrc,
-            ids=ids,
-            idssrc=idssrc,
-            lat=lat,
-            latsrc=latsrc,
-            legend=legend,
-            legendgroup=legendgroup,
-            legendgrouptitle=legendgrouptitle,
-            legendrank=legendrank,
-            legendwidth=legendwidth,
-            lon=lon,
-            lonsrc=lonsrc,
-            meta=meta,
-            metasrc=metasrc,
-            name=name,
-            opacity=opacity,
-            radius=radius,
-            radiussrc=radiussrc,
-            reversescale=reversescale,
-            showlegend=showlegend,
-            showscale=showscale,
-            stream=stream,
-            subplot=subplot,
-            text=text,
-            textsrc=textsrc,
-            uid=uid,
-            uirevision=uirevision,
-            visible=visible,
-            z=z,
-            zauto=zauto,
-            zmax=zmax,
-            zmid=zmid,
-            zmin=zmin,
-            zsrc=zsrc,
-            **kwargs,
+        # Only include explicitly provided arguments. This avoids wasting time in constructor with Nones/defaults.
+        # The __init__ of Densitymap is compatible with receiving only present values.
+        local_vars = locals()
+        # Parameters passed to this method, excluding self, row, col, and kwargs
+        arg_names = (
+            "autocolorscale", "below", "coloraxis", "colorbar", "colorscale", "customdata", "customdatasrc",
+            "hoverinfo", "hoverinfosrc", "hoverlabel", "hovertemplate", "hovertemplatesrc", "hovertext",
+            "hovertextsrc", "ids", "idssrc", "lat", "latsrc", "legend", "legendgroup", "legendgrouptitle",
+            "legendrank", "legendwidth", "lon", "lonsrc", "meta", "metasrc", "name", "opacity", "radius",
+            "radiussrc", "reversescale", "showlegend", "showscale", "stream", "subplot", "text", "textsrc",
+            "uid", "uirevision", "visible", "z", "zauto", "zmax", "zmid", "zmin", "zsrc"
         )
+        # kwargs may also provide additional arguments
+        densitymap_args = {k: local_vars[k] for k in arg_names if local_vars[k] is not None}
+        densitymap_args.update(kwargs)  # Allow kwargs to override, as original
+
+        new_trace = Densitymap(**densitymap_args)
         return self.add_trace(new_trace, row=row, col=col)
 
     def add_densitymapbox(
