@@ -2,6 +2,7 @@
 # Modifications will be overwitten the next time code generation run.
 
 from plotly.basedatatypes import BaseFigure
+from plotly.graph_objs import Histogram2dContour
 
 
 class Figure(BaseFigure):
@@ -9326,75 +9327,86 @@ class Figure(BaseFigure):
         -------
         Figure
         """
-        from plotly.graph_objs import Histogram2dContour
 
-        new_trace = Histogram2dContour(
-            autobinx=autobinx,
-            autobiny=autobiny,
-            autocolorscale=autocolorscale,
-            autocontour=autocontour,
-            bingroup=bingroup,
-            coloraxis=coloraxis,
-            colorbar=colorbar,
-            colorscale=colorscale,
-            contours=contours,
-            customdata=customdata,
-            customdatasrc=customdatasrc,
-            histfunc=histfunc,
-            histnorm=histnorm,
-            hoverinfo=hoverinfo,
-            hoverinfosrc=hoverinfosrc,
-            hoverlabel=hoverlabel,
-            hovertemplate=hovertemplate,
-            hovertemplatesrc=hovertemplatesrc,
-            ids=ids,
-            idssrc=idssrc,
-            legend=legend,
-            legendgroup=legendgroup,
-            legendgrouptitle=legendgrouptitle,
-            legendrank=legendrank,
-            legendwidth=legendwidth,
-            line=line,
-            marker=marker,
-            meta=meta,
-            metasrc=metasrc,
-            name=name,
-            nbinsx=nbinsx,
-            nbinsy=nbinsy,
-            ncontours=ncontours,
-            opacity=opacity,
-            reversescale=reversescale,
-            showlegend=showlegend,
-            showscale=showscale,
-            stream=stream,
-            textfont=textfont,
-            texttemplate=texttemplate,
-            uid=uid,
-            uirevision=uirevision,
-            visible=visible,
-            x=x,
-            xaxis=xaxis,
-            xbingroup=xbingroup,
-            xbins=xbins,
-            xcalendar=xcalendar,
-            xhoverformat=xhoverformat,
-            xsrc=xsrc,
-            y=y,
-            yaxis=yaxis,
-            ybingroup=ybingroup,
-            ybins=ybins,
-            ycalendar=ycalendar,
-            yhoverformat=yhoverformat,
-            ysrc=ysrc,
-            z=z,
-            zauto=zauto,
-            zhoverformat=zhoverformat,
-            zmax=zmax,
-            zmid=zmid,
-            zmin=zmin,
-            zsrc=zsrc,
-            **kwargs,
-        )
+        # Build a dict of non-None parameters (skip those left as None)
+        params = {
+            'autobinx': autobinx,
+            'autobiny': autobiny,
+            'autocolorscale': autocolorscale,
+            'autocontour': autocontour,
+            'bingroup': bingroup,
+            'coloraxis': coloraxis,
+            'colorbar': colorbar,
+            'colorscale': colorscale,
+            'contours': contours,
+            'customdata': customdata,
+            'customdatasrc': customdatasrc,
+            'histfunc': histfunc,
+            'histnorm': histnorm,
+            'hoverinfo': hoverinfo,
+            'hoverinfosrc': hoverinfosrc,
+            'hoverlabel': hoverlabel,
+            'hovertemplate': hovertemplate,
+            'hovertemplatesrc': hovertemplatesrc,
+            'ids': ids,
+            'idssrc': idssrc,
+            'legend': legend,
+            'legendgroup': legendgroup,
+            'legendgrouptitle': legendgrouptitle,
+            'legendrank': legendrank,
+            'legendwidth': legendwidth,
+            'line': line,
+            'marker': marker,
+            'meta': meta,
+            'metasrc': metasrc,
+            'name': name,
+            'nbinsx': nbinsx,
+            'nbinsy': nbinsy,
+            'ncontours': ncontours,
+            'opacity': opacity,
+            'reversescale': reversescale,
+            'showlegend': showlegend,
+            'showscale': showscale,
+            'stream': stream,
+            'textfont': textfont,
+            'texttemplate': texttemplate,
+            'uid': uid,
+            'uirevision': uirevision,
+            'visible': visible,
+            'x': x,
+            'xaxis': xaxis,
+            'xbingroup': xbingroup,
+            'xbins': xbins,
+            'xcalendar': xcalendar,
+            'xhoverformat': xhoverformat,
+            'xsrc': xsrc,
+            'y': y,
+            'yaxis': yaxis,
+            'ybingroup': ybingroup,
+            'ybins': ybins,
+            'ycalendar': ycalendar,
+            'yhoverformat': yhoverformat,
+            'ysrc': ysrc,
+            'z': z,
+            'zauto': zauto,
+            'zhoverformat': zhoverformat,
+            'zmax': zmax,
+            'zmid': zmid,
+            'zmin': zmin,
+            'zsrc': zsrc
+        }
+        # Drop all None values in-place
+        params = {k: v for k, v in params.items() if v is not None}
+
+        # Add remaining kwargs (avoid overwriting explicit keys)
+        if kwargs:
+            for k, v in kwargs.items():
+                if k not in params:
+                    params[k] = v
+
+        # The construction now only handles items explicitly requested or user-supplied and non-None
+        new_trace = Histogram2dContour(**params)
+
         return self.add_trace(new_trace, row=row, col=col, secondary_y=secondary_y)
 
     def add_icicle(
