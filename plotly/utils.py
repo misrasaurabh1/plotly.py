@@ -61,15 +61,18 @@ class ElidedWrapper(object):
 
     @staticmethod
     def is_wrappable(v):
-        numpy = get_module("numpy")
-        if isinstance(v, (list, tuple)) and len(v) > 0 and not isinstance(v[0], dict):
+        # Fastest short-circuit, minimize get_module call  
+        # Locally store isinstance, len where useful
+        if isinstance(v, str):
             return True
-        elif numpy and isinstance(v, numpy.ndarray):
-            return True
-        elif isinstance(v, str):
-            return True
-        else:
+        if isinstance(v, (list, tuple)):
+            if v and not isinstance(v[0], dict):
+                return True
             return False
+        numpy = get_module("numpy")
+        if numpy is not None and isinstance(v, numpy.ndarray):
+            return True
+        return False
 
     def __repr__(self):
         numpy = get_module("numpy")
