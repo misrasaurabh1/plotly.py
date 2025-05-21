@@ -22047,7 +22047,52 @@ class Figure(BaseFigure):
             objects that satisfy all of the specified selection criteria
         """
 
-        return self._select_layout_subplots_by_prefix("polar", selector, row, col)
+        # Fast, minimal allocation path
+        layout = self.layout
+        layout_keys = layout.keys() if hasattr(layout, 'keys') else list(layout)
+        # If row or col filtering needed, build mapping from layout key to (row, col)
+        if row is not None or col is not None:
+            grid_ref = self._validate_get_grid_ref()
+            container_to_row_col = {}
+            for r_idx, subplot_row in enumerate(grid_ref):
+                for c_idx, subplot_refs in enumerate(subplot_row):
+                    if not subplot_refs:
+                        continue
+                    for i, subplot_ref in enumerate(subplot_refs):
+                        for layout_key in subplot_ref.layout_keys:
+                            if layout_key.startswith("polar"):
+                                container_to_row_col[layout_key] = (r_idx + 1, c_idx + 1)
+        else:
+            container_to_row_col = None
+
+        # Filtering and selection
+        def matches(obj):
+            if selector is None:
+                return True
+            elif callable(selector):
+                return selector(obj)
+            elif isinstance(selector, dict):
+                for k, v in selector.items():
+                    if not (hasattr(obj, k) and getattr(obj, k) == v):
+                        return False
+                return True
+            else:
+                return False
+
+        for k in layout_keys:
+            if not k.startswith("polar"):
+                continue
+            if row is not None or col is not None:
+                if container_to_row_col is None or k not in container_to_row_col:
+                    continue
+                r, c = container_to_row_col[k]
+                if row is not None and r != row:
+                    continue
+                if col is not None and c != col:
+                    continue
+            obj = layout[k]
+            if obj is not None and matches(obj):
+                yield obj
 
     def for_each_polar(self, fn, selector=None, row=None, col=None) -> "Figure":
         """
@@ -22080,7 +22125,6 @@ class Figure(BaseFigure):
         """
         for obj in self.select_polars(selector=selector, row=row, col=col):
             fn(obj)
-
         return self
 
     def update_polars(
