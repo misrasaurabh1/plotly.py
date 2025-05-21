@@ -2,6 +2,7 @@
 # Modifications will be overwitten the next time code generation run.
 
 from plotly.basedatatypes import BaseFigure
+from plotly.graph_objs import Histogram2d
 
 
 class Figure(BaseFigure):
@@ -8779,74 +8780,21 @@ class Figure(BaseFigure):
         -------
         Figure
         """
-        from plotly.graph_objs import Histogram2d
 
-        new_trace = Histogram2d(
-            autobinx=autobinx,
-            autobiny=autobiny,
-            autocolorscale=autocolorscale,
-            bingroup=bingroup,
-            coloraxis=coloraxis,
-            colorbar=colorbar,
-            colorscale=colorscale,
-            customdata=customdata,
-            customdatasrc=customdatasrc,
-            histfunc=histfunc,
-            histnorm=histnorm,
-            hoverinfo=hoverinfo,
-            hoverinfosrc=hoverinfosrc,
-            hoverlabel=hoverlabel,
-            hovertemplate=hovertemplate,
-            hovertemplatesrc=hovertemplatesrc,
-            ids=ids,
-            idssrc=idssrc,
-            legend=legend,
-            legendgroup=legendgroup,
-            legendgrouptitle=legendgrouptitle,
-            legendrank=legendrank,
-            legendwidth=legendwidth,
-            marker=marker,
-            meta=meta,
-            metasrc=metasrc,
-            name=name,
-            nbinsx=nbinsx,
-            nbinsy=nbinsy,
-            opacity=opacity,
-            reversescale=reversescale,
-            showlegend=showlegend,
-            showscale=showscale,
-            stream=stream,
-            textfont=textfont,
-            texttemplate=texttemplate,
-            uid=uid,
-            uirevision=uirevision,
-            visible=visible,
-            x=x,
-            xaxis=xaxis,
-            xbingroup=xbingroup,
-            xbins=xbins,
-            xcalendar=xcalendar,
-            xgap=xgap,
-            xhoverformat=xhoverformat,
-            xsrc=xsrc,
-            y=y,
-            yaxis=yaxis,
-            ybingroup=ybingroup,
-            ybins=ybins,
-            ycalendar=ycalendar,
-            ygap=ygap,
-            yhoverformat=yhoverformat,
-            ysrc=ysrc,
-            z=z,
-            zauto=zauto,
-            zhoverformat=zhoverformat,
-            zmax=zmax,
-            zmid=zmid,
-            zmin=zmin,
-            zsmooth=zsmooth,
-            zsrc=zsrc,
-            **kwargs,
-        )
+        # Use locals() to fetch all locals and build the dict for Histogram2d
+        # Remove explicitly handled arguments: 'self', 'row', 'col', 'secondary_y', 'kwargs'
+        # Only include items that are not None
+        _skip_keys = {
+            "self", "row", "col", "secondary_y", "kwargs"
+        }
+        trace_args = {k: v for k, v in locals().items()
+                      if k not in _skip_keys and v is not None}
+
+        # kwargs may contain valid extra items; update them in
+        if kwargs:
+            trace_args.update(kwargs)
+
+        new_trace = Histogram2d(**trace_args)
         return self.add_trace(new_trace, row=row, col=col, secondary_y=secondary_y)
 
     def add_histogram2dcontour(
