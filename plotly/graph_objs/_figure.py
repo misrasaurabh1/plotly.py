@@ -2,6 +2,7 @@
 # Modifications will be overwitten the next time code generation run.
 
 from plotly.basedatatypes import BaseFigure
+from plotly.graph_objs import Scattermapbox
 
 
 class Figure(BaseFigure):
@@ -15889,58 +15890,12 @@ class Figure(BaseFigure):
         -------
         Figure
         """
-        from plotly.graph_objs import Scattermapbox
-
-        new_trace = Scattermapbox(
-            below=below,
-            cluster=cluster,
-            connectgaps=connectgaps,
-            customdata=customdata,
-            customdatasrc=customdatasrc,
-            fill=fill,
-            fillcolor=fillcolor,
-            hoverinfo=hoverinfo,
-            hoverinfosrc=hoverinfosrc,
-            hoverlabel=hoverlabel,
-            hovertemplate=hovertemplate,
-            hovertemplatesrc=hovertemplatesrc,
-            hovertext=hovertext,
-            hovertextsrc=hovertextsrc,
-            ids=ids,
-            idssrc=idssrc,
-            lat=lat,
-            latsrc=latsrc,
-            legend=legend,
-            legendgroup=legendgroup,
-            legendgrouptitle=legendgrouptitle,
-            legendrank=legendrank,
-            legendwidth=legendwidth,
-            line=line,
-            lon=lon,
-            lonsrc=lonsrc,
-            marker=marker,
-            meta=meta,
-            metasrc=metasrc,
-            mode=mode,
-            name=name,
-            opacity=opacity,
-            selected=selected,
-            selectedpoints=selectedpoints,
-            showlegend=showlegend,
-            stream=stream,
-            subplot=subplot,
-            text=text,
-            textfont=textfont,
-            textposition=textposition,
-            textsrc=textsrc,
-            texttemplate=texttemplate,
-            texttemplatesrc=texttemplatesrc,
-            uid=uid,
-            uirevision=uirevision,
-            unselected=unselected,
-            visible=visible,
-            **kwargs,
-        )
+        # Gather all locals except self, row, col, kwargs (those for add_trace or Python context)
+        # Only pass explicit non-None args for faster constructor and concise code
+        _skip = {"self", "row", "col", "kwargs"}
+        _params = {k: v for k, v in locals().items() if k not in _skip and v is not None}
+        _params.update(kwargs)
+        new_trace = Scattermapbox(**_params)
         return self.add_trace(new_trace, row=row, col=col)
 
     def add_scatterpolar(
