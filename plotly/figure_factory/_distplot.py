@@ -426,22 +426,40 @@ class _Distplot(object):
 
         :rtype (list) rug: list of rug plot representations
         """
-        rug = [None] * self.trace_number
-        for index in range(self.trace_number):
+        showlegend = not (self.show_hist or self.show_curve)
+        colors = self.colors
+        ncol = len(colors)
+        group_labels = self.group_labels
+        hist_data = self.hist_data
+        rug_text = self.rug_text
+        marker_symbol = "line-ns-open"
+        trace_number = self.trace_number
 
-            rug[index] = dict(
-                type="scatter",
-                x=self.hist_data[index],
-                y=([self.group_labels[index]] * len(self.hist_data[index])),
-                xaxis="x1",
-                yaxis="y2",
-                mode="markers",
-                name=self.group_labels[index],
-                legendgroup=self.group_labels[index],
-                showlegend=(False if self.show_hist or self.show_curve else True),
-                text=self.rug_text[index],
-                marker=dict(
-                    color=self.colors[index % len(self.colors)], symbol="line-ns-open"
-                ),
-            )
+        # Pre-allocate output list
+        rug = [None] * trace_number
+
+        for idx in range(trace_number):
+            color = colors[idx % ncol]
+            label = group_labels[idx]
+            data = hist_data[idx]
+            length = len(data)
+            yval = [label] * length
+
+            # construct the dict using local variables to avoid lookup overhead
+            rug[idx] = {
+                "type": "scatter",
+                "x": data,
+                "y": yval,
+                "xaxis": "x1",
+                "yaxis": "y2",
+                "mode": "markers",
+                "name": label,
+                "legendgroup": label,
+                "showlegend": showlegend,
+                "text": rug_text[idx],
+                "marker": {
+                    "color": color,
+                    "symbol": marker_symbol,
+                },
+            }
         return rug
