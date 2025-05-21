@@ -38,11 +38,11 @@ def _vectorize_zvalue(z, mode="max"):
 
 def _infer_zmax_from_type(img):
     dt = img.dtype.type
-    rtol = 1.05
+    rtol = 1.05  # No performance impact, keep as is
     if dt in _integer_types:
         return _integer_ranges[dt][1]
     else:
-        im_max = img[np.isfinite(img)].max()
+        im_max = _finite_max(img)
         if im_max <= 1 * rtol:
             return 1
         elif im_max <= 255 * rtol:
@@ -603,3 +603,30 @@ def imshow(
     configure_animation_controls(args, go.Image, fig)
     fig.update_layout(template=args["template"], overwrite=True)
     return fig
+
+
+def _finite_max(arr):
+    """Compute the maximum of all finite elements in a numpy array efficiently."""
+    # Flatten in case input is not already 1D for performance
+    arr_flat = arr.ravel()
+    # Fast path: Try to use numpy built-ins if possible
+    if np.issubdtype(arr.dtype, np.floating):
+        # Use nanmax, as it skips nan but not infs, so mask inf as well
+        finite_mask = np.isfinite(arr_flat)
+        if not np.any(finite_mask):
+            # No finite values; consistent with np.max([]) raising ValueError
+            raise ValueError("No finite values in array")
+        return arr_flat[finite_mask].max()
+    # Integer: All values are already finite
+    elif np.issubdtype(arr.dtype, np.integer):
+        return arr_flat.max()
+    else:
+        # fallback: generic, for complex or object dtypes
+        max_val = None
+        for x in arr_flat:
+            if np.isfinite(x):
+                if max_val is None or x > max_val:
+                    max_val = x
+        if max_val is None:
+            raise ValueError("No finite values in array")
+        return max_val
