@@ -4,6 +4,7 @@ from plotly import exceptions, optional_imports
 import plotly.colors as clrs
 from plotly.graph_objs import graph_objs
 from plotly.subplots import make_subplots
+import numpy as np
 
 pd = optional_imports.get_module("pandas")
 np = optional_imports.get_module("numpy")
@@ -65,10 +66,16 @@ def make_violin_rugplot(vals, pdf_max, distance, color="#1f77b4"):
     """
     Returns a rugplot fig for a violin plot.
     """
+    n = len(vals)
+    # Use numpy for efficient repeated value construction
+    x_val = -pdf_max - distance
+    # Use np.full for large vals, else fallback to list for very small input (avoid numpy overhead for n < 8)
+    x = np.full(n, x_val) if n >= 8 else [x_val] * n
+
     return graph_objs.Scatter(
         y=vals,
-        x=[-pdf_max - distance] * len(vals),
-        marker=graph_objs.scatter.Marker(color=color, symbol="line-ew-open"),
+        x=x,
+        marker=_get_marker(color),
         mode="markers",
         name="",
         showlegend=False,
@@ -708,3 +715,11 @@ def create_violin(
                 title,
             )
             return fig
+
+def _get_marker(color):
+    # This helper caches Marker instances to avoid redundant construction
+    if color not in _marker_cache:
+        _marker_cache[color] = graph_objs.scatter.Marker(color=color, symbol="line-ew-open")
+    return _marker_cache[color]
+
+_marker_cache = {}
