@@ -124,17 +124,14 @@ def make_XAxis(xaxis_title, xaxis_range):
     """
     Makes the x-axis for a violin plot.
     """
-    xaxis = graph_objs.layout.XAxis(
+    # Only specify values that are different from Plotly defaults.
+    return graph_objs.layout.XAxis(
         title=xaxis_title,
         range=xaxis_range,
         showgrid=False,
         zeroline=False,
-        showline=False,
-        mirror=False,
-        ticks="",
         showticklabels=False,
     )
-    return xaxis
 
 
 def make_YAxis(yaxis_title):
