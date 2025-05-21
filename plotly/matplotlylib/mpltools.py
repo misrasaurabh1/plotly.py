@@ -358,7 +358,33 @@ def get_rect_ymin(data):
 
 def get_rect_ymax(data):
     """Find maximum y value from four (x,y) vertices."""
-    return max(data[0][1], data[1][1], data[2][1], data[3][1])
+    y0 = data[0][1]
+    y1 = data[1][1]
+    y2 = data[2][1]
+    y3 = data[3][1]
+    # Inline max comparison to avoid function overhead
+    if y0 >= y1:
+        if y0 >= y2:
+            if y0 >= y3:
+                return y0
+            else:
+                return y3
+        else:
+            if y2 >= y3:
+                return y2
+            else:
+                return y3
+    else:
+        if y1 >= y2:
+            if y1 >= y3:
+                return y1
+            else:
+                return y3
+        else:
+            if y2 >= y3:
+                return y2
+            else:
+                return y3
 
 
 def get_spine_visible(ax, spine_key):
