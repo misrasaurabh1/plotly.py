@@ -21598,8 +21598,19 @@ class Figure(BaseFigure):
             Generator that iterates through all of the geo
             objects that satisfy all of the specified selection criteria
         """
-
-        return self._select_layout_subplots_by_prefix("geo", selector, row, col)
+        # Fast path: Avoid function call if default/no filtering is needed
+        if selector is None and row is None and col is None:
+            # Inline the logic of _select_layout_subplots_by_prefix for
+            # this special case for better performance
+            layout = self.layout
+            # Use local constant for prefix for speed
+            prefix = "geo"
+            # Only select keys that start with "geo" and exist in layout
+            # and are not None, using a generator for memory efficiency
+            return (layout[k] for k in layout if k.startswith(prefix) and layout[k] is not None)
+        else:
+            # Fallback to generic method for complex selection
+            return self._select_layout_subplots_by_prefix("geo", selector, row, col)
 
     def for_each_geo(self, fn, selector=None, row=None, col=None) -> "Figure":
         """
@@ -21630,9 +21641,11 @@ class Figure(BaseFigure):
         self
             Returns the Figure object that the method was called on
         """
-        for obj in self.select_geos(selector=selector, row=row, col=col):
+        # Use a local variable for select_geos to avoid attribute lookup in loop
+        select_geos_gen = self.select_geos(selector=selector, row=row, col=col)
+        # Avoid function call overhead by inlining the loop
+        for obj in select_geos_gen:
             fn(obj)
-
         return self
 
     def update_geos(
