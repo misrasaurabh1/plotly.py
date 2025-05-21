@@ -1138,8 +1138,7 @@ def _init_subplot(
 
 def _get_cartesian_label(x_or_y, r, c, cnt):
     # Default label (given strictly by cnt)
-    label = "{x_or_y}{cnt}".format(x_or_y=x_or_y, cnt=cnt)
-    return label
+    return f"{x_or_y}{cnt}"
 
 
 def _build_subplot_title_annotations(
