@@ -100,7 +100,8 @@ def _build_resize_script(plotdivid, plotly_root="Plotly"):
 
 
 def _build_mathjax_script(url):
-    return '<script src="{url}?config=TeX-AMS-MML_SVG"></script>'.format(url=url)
+    # Use f-string for faster and more efficient string interpolation
+    return f'<script src="{url}?config=TeX-AMS-MML_SVG"></script>'
 
 
 def _get_jconfig(config=None):
