@@ -203,34 +203,21 @@ def get_image_download_script(caller):
     """
 
     if caller == "iplot":
-        check_start = "if(document.readyState == 'complete') {{"
-        check_end = "}}"
+        return _DOWNLOAD_SCRIPT_IPLOT
     elif caller == "plot":
-        check_start = ""
-        check_end = ""
+        return _DOWNLOAD_SCRIPT_PLOT
     else:
         raise ValueError("caller should only be one of `iplot` or `plot`")
-
-    return (
-        "function downloadimage(format, height, width,"
-        " filename) {{"
-        "var p = document.getElementById('{{plot_id}}');"
-        "Plotly.downloadImage(p, {{format: format, height: height, "
-        "width: width, filename: filename}});}};"
-        + check_start
-        + "downloadimage('{format}', {height}, {width}, "
-        "'{filename}');" + check_end
-    )
 
 
 def build_save_image_post_script(
     image, image_filename, image_height, image_width, caller
 ):
     if image:
-        if image not in __IMAGE_FORMATS:
+        if image not in __IMAGE_FORMATS_SET:
             raise ValueError(
                 "The image parameter must be one of the "
-                "following: {}".format(__IMAGE_FORMATS)
+                "following: {}".format(list(__IMAGE_FORMATS_SET))
             )
 
         script = get_image_download_script(caller)
@@ -240,10 +227,8 @@ def build_save_image_post_script(
             height=image_height,
             filename=image_filename,
         )
-    else:
-        post_script = None
-
-    return post_script
+        return post_script
+    return None
 
 
 def init_notebook_mode(connected=False):
@@ -834,3 +819,26 @@ def enable_mpl_offline(
             fig, resize, strip_style, verbose, show_link, link_text, validate
         ),
     )
+
+__IMAGE_FORMATS_SET = set(["jpeg", "png", "webp", "svg"])
+
+_DOWNLOAD_SCRIPT_IPLOT = (
+    "function downloadimage(format, height, width,"
+    " filename) {{"
+    "var p = document.getElementById('{{plot_id}}');"
+    "Plotly.downloadImage(p, {{format: format, height: height, "
+    "width: width, filename: filename}});}};"
+    "if(document.readyState == 'complete') {{"
+    "downloadimage('{format}', {height}, {width}, "
+    "'{filename}');}}"
+)
+
+_DOWNLOAD_SCRIPT_PLOT = (
+    "function downloadimage(format, height, width,"
+    " filename) {{"
+    "var p = document.getElementById('{{plot_id}}');"
+    "Plotly.downloadImage(p, {{format: format, height: height, "
+    "width: width, filename: filename}});}};"
+    "downloadimage('{format}', {height}, {width}, "
+    "'{filename}');"
+)
