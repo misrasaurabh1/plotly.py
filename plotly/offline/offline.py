@@ -88,15 +88,15 @@ def get_plotlyjs():
 
 
 def _build_resize_script(plotdivid, plotly_root="Plotly"):
-    resize_script = (
-        '<script type="text/javascript">'
-        'window.addEventListener("resize", function(){{'
-        'if (document.getElementById("{id}")) {{'
-        '{plotly_root}.Plots.resize(document.getElementById("{id}"));'
-        "}};}})"
-        "</script>"
-    ).format(plotly_root=plotly_root, id=plotdivid)
-    return resize_script
+    # Use an f-string for much faster formatting
+    return (
+        f'<script type="text/javascript">'
+        f'window.addEventListener("resize", function(){{'
+        f'if (document.getElementById("{plotdivid}")) {{'
+        f'{plotly_root}.Plots.resize(document.getElementById("{plotdivid}"));'
+        f"}};}})"
+        f"</script>"
+    )
 
 
 def _build_mathjax_script(url):
