@@ -21,20 +21,23 @@ from matplotlib import ticker
 
 def export_color(color):
     """Convert matplotlib color code to hex color or RGBA color"""
-    if color is None or colorConverter.to_rgba(color)[3] == 0:
+    # Avoid duplicate to_rgba/to_rgb calls
+    if color is None:
         return "none"
-    elif colorConverter.to_rgba(color)[3] == 1:
-        rgb = colorConverter.to_rgb(color)
-        return "#{0:02X}{1:02X}{2:02X}".format(*(int(255 * c) for c in rgb))
-    else:
-        c = colorConverter.to_rgba(color)
-        return (
-            "rgba("
-            + ", ".join(str(int(np.round(val * 255))) for val in c[:3])
-            + ", "
-            + str(c[3])
-            + ")"
+    rgba = colorConverter.to_rgba(color)
+    if rgba[3] == 0:
+        return "none"
+    elif rgba[3] == 1:
+        # Use the already computed RGB values, not another to_rgb conversion
+        return "#{0:02X}{1:02X}{2:02X}".format(
+            int(255 * rgba[0]),
+            int(255 * rgba[1]),
+            int(255 * rgba[2]),
         )
+    else:
+        # Use rounded and converted RGB for alpha < 1
+        rgb_vals = [str(int(np.round(val * 255))) for val in rgba[:3]]
+        return "rgba(" + ", ".join(rgb_vals) + ", " + str(rgba[3]) + ")"
 
 
 def _many_to_one(input_dict):
@@ -67,8 +70,12 @@ def get_dasharray(obj):
     dasharray : string
         The HTML/SVG dasharray code associated with the object.
     """
-    if obj.__dict__.get("_dashSeq", None) is not None:
-        return ",".join(map(str, obj._dashSeq))
+    # Optimize dashSeq lookup by avoiding get
+    dct = obj.__dict__
+    dash_seq = dct.get("_dashSeq", None)
+    if dash_seq is not None:
+        # Avoid map(str, ...) overhead for common case _dashSeq not present
+        return ",".join(str(x) for x in dash_seq)
     else:
         ls = obj.get_linestyle()
         dasharray = LINESTYLES.get(ls, "not found")
@@ -148,9 +155,9 @@ def get_path_style(path, fill=True):
 def get_line_style(line):
     """Get the style dictionary for matplotlib line objects"""
     style = {}
-    style["alpha"] = line.get_alpha()
-    if style["alpha"] is None:
-        style["alpha"] = 1
+    alpha = line.get_alpha()
+    style["alpha"] = alpha if alpha is not None else 1
+    # Only one call to get_color and to export_color per line
     style["color"] = export_color(line.get_color())
     style["linewidth"] = line.get_linewidth()
     style["dasharray"] = get_dasharray(line)
