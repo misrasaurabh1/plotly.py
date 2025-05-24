@@ -8,7 +8,7 @@ import itertools
 from functools import reduce
 
 from _plotly_utils.utils import (
-    _natural_sort_strings,
+    is_skipped_key, to_typed_array_spec, _natural_sort_strings,
     _get_int_type,
     split_multichar,
     split_string_positions,
@@ -20,8 +20,9 @@ from _plotly_utils.utils import (
 from _plotly_utils.exceptions import PlotlyKeyError
 from .optional_imports import get_module
 
-from . import shapeannotation
+from . import animation, shapeannotation
 from . import _subplots
+from _plotly_utils.basevalidators import is_homogeneous_array
 
 # Create Undefined sentinel value
 #   - Setting a property to None removes any existing value
@@ -468,7 +469,7 @@ class BaseFigure(object):
             if a property in the specification of data, layout, or frames
             is invalid AND skip_invalid is False
         """
-        from .validators import DataValidator, LayoutValidator, FramesValidator
+        from .validators import DataValidator, FramesValidator, LayoutValidator
 
         super(BaseFigure, self).__init__()
 
@@ -533,6 +534,7 @@ class BaseFigure(object):
         # ### Import clone of trace properties ###
         # The _data property is a list of dicts containing the properties
         # explicitly set by the user for each trace.
+        from copy import deepcopy  # required for clearing orphan_props
         self._data = [deepcopy(trace._props) for trace in data]
 
         # ### Create data defaults ###
@@ -3316,26 +3318,15 @@ Invalid property path '{key_path_str}' for layout
         -------
         dict
         """
-        # Handle data
-        # -----------
-        data = deepcopy(self._data)
-
-        # Handle layout
-        # -------------
-        layout = deepcopy(self._layout)
-
-        # Handle frames
-        # -------------
-        # Frame key is only added if there are any frames
+        # Instead of deepcopy + mutate, do a single pass copy+convert
+        data = self._copy_and_encode(self._data)
+        layout = self._copy_and_encode(self._layout)
         res = {"data": data, "layout": layout}
-        frames = deepcopy([frame._props for frame in self._frame_objs])
 
+        # Frames only included if any exist
+        frames = [self._copy_and_encode(frame._props) for frame in self._frame_objs]
         if frames:
             res["frames"] = frames
-
-        # Add base64 conversion before sending to the front-end
-        convert_to_base64(res)
-
         return res
 
     def to_plotly_json(self):
@@ -4326,6 +4317,33 @@ Invalid property path '{key_path_str}' for layout
         if self._has_subplots():
             raise ValueError("This figure already has subplots.")
         return _subplots.make_subplots(figure=self, **make_subplots_args)
+
+    def _copy_and_encode(self, obj):
+        """
+        Recursively copy obj (dict, list, tuple, other) and convert
+        homogeneous arrays into typed array spec using to_typed_array_spec,
+        skipping keys listed in is_skipped_key.
+        """
+        # Fast path: dict
+        if isinstance(obj, dict):
+            new_obj = obj.__class__()
+            for key, value in obj.items():
+                if is_skipped_key(key):
+                    new_obj[key] = self._copy_and_encode(value)
+                elif is_homogeneous_array(value):
+                    new_obj[key] = to_typed_array_spec(value)
+                else:
+                    new_obj[key] = self._copy_and_encode(value)
+            return new_obj
+
+        # Fast path: list/tuple
+        elif isinstance(obj, list):
+            return [self._copy_and_encode(v) for v in obj]
+        elif isinstance(obj, tuple):
+            return tuple(self._copy_and_encode(v) for v in obj)
+
+        # All other (non-container) objects: just return as-is
+        return obj
 
 
 class BasePlotlyType(object):
