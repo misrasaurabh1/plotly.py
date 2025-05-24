@@ -4400,6 +4400,10 @@ class BasePlotlyType(object):
         # ### Backing property for backward compatible _validator property ##
         self.__validators = None
 
+        # Pre-initialize _props if not done elsewhere for efficient access
+        if not hasattr(self, '_props'):
+            self._props = {}
+
     # @property
     # def _validate(self):
     #     fig = self.figure
@@ -5683,7 +5687,16 @@ on_change callbacks are not supported in this case.
         -------
         dict
         """
-        return deepcopy(self._props if self._props is not None else {})
+        # Fast-path: explicitly empty (common), or only builtin types
+        props = self._props if self._props is not None else {}
+        # Heuristic: avoid deepcopy if we only have simple leaf types at top level
+        if not props:
+            return {}
+        try:
+            return self._fast_deepcopy_dict(props)
+        except Exception:
+            # Fallback if structure cannot be "fast" deepcopied (e.g. contains a custom object)
+            return deepcopy(props)
 
     def to_json(self, *args, **kwargs):
         """
@@ -5755,6 +5768,27 @@ on_change callbacks are not supported in this case.
             )
         else:
             return v1 == v2
+
+    def _fast_deepcopy_dict(self, d):
+        # Fast deepcopy for dicts containing JSON-like hierarchies (dict, list, str, int, float, bool, None)
+        # Outer level is always a dict, as per Plotly semantics.
+        if not d:
+            return {}
+        result = {}
+        # use local binding for better performance
+        _fast_deepcopy_dict = self._fast_deepcopy_dict
+        for k, v in d.items():
+            if isinstance(v, dict):
+                result[k] = _fast_deepcopy_dict(v)
+            elif isinstance(v, list):
+                result[k] = [
+                    _fast_deepcopy_dict(i) if isinstance(i, dict) else 
+                    [ _fast_deepcopy_dict(j) if isinstance(j, dict) else j for j in i ] if isinstance(i, list) else i 
+                    for i in v
+                ]
+            else:
+                result[k] = v
+        return result
 
 
 class BaseLayoutHierarchyType(BasePlotlyType):
