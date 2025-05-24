@@ -66,26 +66,37 @@ def broadcast_args_to_dicts(**kwargs: dict) -> List[dict]:
     ValueError
         If any of the input lists are not the same length
     """
-    # Check that all list arguments have the same length,
-    # and find out what that length is
-    # If there are no list arguments, length is 1
-    list_lengths = [len(v) for v in tuple(kwargs.values()) if isinstance(v, list)]
-    if list_lengths and len(set(list_lengths)) > 1:
-        raise ValueError("All list arguments must have the same length.")
-    list_length = list_lengths[0] if list_lengths else 1
+    # Collect keys and their values
+    items = []
+    list_length = None
 
-    # Expand all arguments to lists of the same length
-    expanded_kwargs = {
-        k: [v] * list_length if not isinstance(v, list) else v
-        for k, v in kwargs.items()
-    }
-    # Reshape into a list of dictionaries
-    # Each dictionary represents the keyword arguments for a single function call
-    list_of_kwargs = [
-        {k: v[i] for k, v in expanded_kwargs.items()} for i in range(list_length)
-    ]
+    for k, v in kwargs.items():
+        if isinstance(v, list):
+            if list_length is None:
+                list_length = len(v)
+            elif len(v) != list_length:
+                raise ValueError("All list arguments must have the same length.")
+            items.append((k, v))
+        else:
+            items.append((k, None))  # mark for later
 
-    return list_of_kwargs
+    # If there are no lists, every singleton broadcasts to length 1
+    if list_length is None:
+        list_length = 1
+        broadcasted = [tuple(v if not v_ is None else [kwargs[k]] for k, v_ in items)]
+        return [{k: kwargs[k] for k, _ in items}]
+    else:
+        # Expand singletons to lists
+        broadcasted = []
+        for k, v in items:
+            if v is None:
+                broadcasted.append([kwargs[k]] * list_length)
+            else:
+                broadcasted.append(v)
+        # Use zip to batch build the result dictionaries efficiently
+        # Equivalent to: [{k: v[i] for k, v in expanded_kwargs.items()} ...]
+        keys = [k for k, _ in items]
+        return [dict(zip(keys, vals)) for vals in zip(*broadcasted)]
 
 
 def plotly_cdn_url(cdn_ver=get_plotlyjs_version()):
