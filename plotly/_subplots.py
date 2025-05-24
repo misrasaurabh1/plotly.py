@@ -1145,92 +1145,79 @@ def _get_cartesian_label(x_or_y, r, c, cnt):
 def _build_subplot_title_annotations(
     subplot_titles, list_of_domains, title_edge="top", offset=0
 ):
-    # If shared_axes is False (default) use list_of_domains
-    # This is used for insets and irregular layouts
-    # if not shared_xaxes and not shared_yaxes:
+    # Prepare x/y domain lists only once and as tuple to favor memory efficiency.
     x_dom = list_of_domains[::2]
     y_dom = list_of_domains[1::2]
-    subtitle_pos_x = []
-    subtitle_pos_y = []
 
+    n = min(len(subplot_titles), len(x_dom), len(y_dom))
+
+    # Pre-compute positions & style parameters
     if title_edge == "top":
         text_angle = 0
         xanchor = "center"
         yanchor = "bottom"
-
-        for x_domains in x_dom:
-            subtitle_pos_x.append(sum(x_domains) / 2.0)
-        for y_domains in y_dom:
-            subtitle_pos_y.append(y_domains[1])
-
+        subtitle_pos_x = [(xd[0] + xd[1]) * 0.5 for xd in x_dom[:n]]
+        subtitle_pos_y = [yd[1] for yd in y_dom[:n]]
         yshift = offset
         xshift = 0
     elif title_edge == "bottom":
         text_angle = 0
         xanchor = "center"
         yanchor = "top"
-
-        for x_domains in x_dom:
-            subtitle_pos_x.append(sum(x_domains) / 2.0)
-        for y_domains in y_dom:
-            subtitle_pos_y.append(y_domains[0])
-
+        subtitle_pos_x = [(xd[0] + xd[1]) * 0.5 for xd in x_dom[:n]]
+        subtitle_pos_y = [yd[0] for yd in y_dom[:n]]
         yshift = -offset
         xshift = 0
     elif title_edge == "right":
         text_angle = 90
         xanchor = "left"
         yanchor = "middle"
-
-        for x_domains in x_dom:
-            subtitle_pos_x.append(x_domains[1])
-        for y_domains in y_dom:
-            subtitle_pos_y.append(sum(y_domains) / 2.0)
-
+        subtitle_pos_x = [xd[1] for xd in x_dom[:n]]
+        subtitle_pos_y = [(yd[0] + yd[1]) * 0.5 for yd in y_dom[:n]]
         yshift = 0
         xshift = offset
     elif title_edge == "left":
         text_angle = -90
         xanchor = "right"
         yanchor = "middle"
-
-        for x_domains in x_dom:
-            subtitle_pos_x.append(x_domains[0])
-        for y_domains in y_dom:
-            subtitle_pos_y.append(sum(y_domains) / 2.0)
-
+        subtitle_pos_x = [xd[0] for xd in x_dom[:n]]
+        subtitle_pos_y = [(yd[0] + yd[1]) * 0.5 for yd in y_dom[:n]]
         yshift = 0
         xshift = -offset
     else:
         raise ValueError("Invalid annotation edge '{edge}'".format(edge=title_edge))
 
+    # Precompute which shifts/angles we actually need to set
+    need_xshift = xshift != 0
+    need_yshift = yshift != 0
+    need_text_angle = text_angle != 0
+
     plot_titles = []
-    for index in range(len(subplot_titles)):
-        if not subplot_titles[index] or index >= len(subtitle_pos_y):
-            pass
-        else:
-            annot = {
-                "y": subtitle_pos_y[index],
-                "xref": "paper",
-                "x": subtitle_pos_x[index],
-                "yref": "paper",
-                "text": subplot_titles[index],
-                "showarrow": False,
-                "font": dict(size=16),
-                "xanchor": xanchor,
-                "yanchor": yanchor,
-            }
+    font_dict = {"size": 16}
+    # Use a single loop, skipping empty titles and only up to n entries.
+    for sx, sy, title in zip(subtitle_pos_x, subtitle_pos_y, subplot_titles):
+        if not title:
+            continue
 
-            if xshift != 0:
-                annot["xshift"] = xshift
+        annot = {
+            "y": sy,
+            "xref": "paper",
+            "x": sx,
+            "yref": "paper",
+            "text": title,
+            "showarrow": False,
+            "font": font_dict,
+            "xanchor": xanchor,
+            "yanchor": yanchor,
+        }
+        if need_xshift:
+            annot["xshift"] = xshift
+        if need_yshift:
+            annot["yshift"] = yshift
+        if need_text_angle:
+            annot["textangle"] = text_angle
 
-            if yshift != 0:
-                annot["yshift"] = yshift
-
-            if text_angle != 0:
-                annot["textangle"] = text_angle
-
-            plot_titles.append(annot)
+        plot_titles.append(annot)
     return plot_titles
 
 
