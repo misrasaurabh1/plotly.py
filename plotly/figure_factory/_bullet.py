@@ -6,6 +6,7 @@ from plotly.figure_factory import utils
 
 import plotly
 import plotly.graph_objs as go
+from _plotly_utils import exceptions
 
 pd = optional_imports.get_module("pandas")
 
@@ -26,8 +27,9 @@ def _bullet(
     layout_options,
 ):
     num_of_lanes = len(df)
-    num_of_rows = num_of_lanes if orientation == "h" else 1
-    num_of_cols = 1 if orientation == "h" else num_of_lanes
+    orientation_is_h = orientation == "h"
+    num_of_rows = num_of_lanes if orientation_is_h else 1
+    num_of_cols = 1 if orientation_is_h else num_of_lanes
     if not horizontal_spacing:
         horizontal_spacing = 1.0 / num_of_lanes
     if not vertical_spacing:
@@ -40,141 +42,166 @@ def _bullet(
         vertical_spacing=vertical_spacing,
     )
 
-    # layout
-    fig["layout"].update(
-        dict(shapes=[]),
-        title="Bullet Chart",
-        height=600,
-        width=1000,
-        showlegend=False,
-        barmode="stack",
-        annotations=[],
-        margin=dict(l=120 if orientation == "h" else 80),
+    layout = fig["layout"]
+    # Layout defaults
+    layout.update(
+        dict(
+            shapes=[],
+            title="Bullet Chart",
+            height=600,
+            width=1000,
+            showlegend=False,
+            barmode="stack",
+            annotations=[],
+            margin=dict(l=120 if orientation_is_h else 80),
+        )
     )
+    layout.update(layout_options)
 
-    # update layout
-    fig["layout"].update(layout_options)
+    width_axis = "yaxis" if orientation_is_h else "xaxis"
+    length_axis = "xaxis" if orientation_is_h else "yaxis"
+    w1 = width_axis + "1"
 
-    if orientation == "h":
-        width_axis = "yaxis"
-        length_axis = "xaxis"
-    else:
-        width_axis = "xaxis"
-        length_axis = "yaxis"
-
-    for key in fig["layout"]:
-        if "xaxis" in key or "yaxis" in key:
-            fig["layout"][key]["showgrid"] = False
-            fig["layout"][key]["zeroline"] = False
+    # Precompute keys for updating axis parameters
+    axis_keys = [k for k in layout.keys() if "xaxis" in k or "yaxis" in k]
+    for key in axis_keys:
+        axis = layout[key]
+        axis["showgrid"] = False
+        axis["zeroline"] = False
         if length_axis in key:
-            fig["layout"][key]["tickwidth"] = 1
+            axis["tickwidth"] = 1
         if width_axis in key:
-            fig["layout"][key]["showticklabels"] = False
-            fig["layout"][key]["range"] = [0, 1]
+            axis["showticklabels"] = False
+            axis["range"] = [0, 1]
 
     # narrow domain if 1 bar
     if num_of_lanes <= 1:
-        fig["layout"][width_axis + "1"]["domain"] = [0.4, 0.6]
+        layout[w1]["domain"] = [0.4, 0.6]
 
     if not range_colors:
         range_colors = ["rgb(200, 200, 200)", "rgb(245, 245, 245)"]
     if not measure_colors:
         measure_colors = ["rgb(31, 119, 180)", "rgb(176, 196, 221)"]
 
+    # Precompute color interpolations for each row (saves a bunch of call!)
+    range_ncolors = [
+        clrs.n_colors(range_colors[0], range_colors[1], len(df.iloc[row]["ranges"]), "rgb")
+        if len(df.iloc[row]["ranges"]) > 0 else []
+        for row in range(num_of_lanes)
+    ]
+    measure_ncolors = [
+        clrs.n_colors(measure_colors[0], measure_colors[1], len(df.iloc[row]["measures"]), "rgb")
+        if len(df.iloc[row]["measures"]) > 0 else []
+        for row in range(num_of_lanes)
+    ]
+
+    annotations = layout["annotations"]
+
     for row in range(num_of_lanes):
         # ranges bars
-        for idx in range(len(df.iloc[row]["ranges"])):
-            inter_colors = clrs.n_colors(
-                range_colors[0], range_colors[1], len(df.iloc[row]["ranges"]), "rgb"
-            )
-            x = (
-                [sorted(df.iloc[row]["ranges"])[-1 - idx]]
-                if orientation == "h"
-                else [0]
-            )
-            y = (
-                [0]
-                if orientation == "h"
-                else [sorted(df.iloc[row]["ranges"])[-1 - idx]]
-            )
-            bar = go.Bar(
-                x=x,
-                y=y,
-                marker=dict(color=inter_colors[-1 - idx]),
-                name="ranges",
-                hoverinfo="x" if orientation == "h" else "y",
-                orientation=orientation,
-                width=2,
-                base=0,
-                xaxis="x{}".format(row + 1),
-                yaxis="y{}".format(row + 1),
-            )
+        ranges_data = df.iloc[row]["ranges"]
+        curr_range_colors = range_ncolors[row]
+        sorted_ranges = sorted(ranges_data) if ranges_data else []
+        xaxis_str = "x{}".format(row + 1)
+        yaxis_str = "y{}".format(row + 1)
+
+        for idx, val in enumerate(sorted_ranges[::-1]):
+            color_idx = -1 - idx
+            val_list = [val]
+            if orientation_is_h:
+                bar = go.Bar(
+                    x=val_list,
+                    y=[0],
+                    marker=dict(color=curr_range_colors[color_idx]),
+                    name="ranges",
+                    hoverinfo="x",
+                    orientation="h",
+                    width=2,
+                    base=0,
+                    xaxis=xaxis_str,
+                    yaxis=yaxis_str,
+                )
+            else:
+                bar = go.Bar(
+                    x=[0],
+                    y=val_list,
+                    marker=dict(color=curr_range_colors[color_idx]),
+                    name="ranges",
+                    hoverinfo="y",
+                    orientation="v",
+                    width=2,
+                    base=0,
+                    xaxis=xaxis_str,
+                    yaxis=yaxis_str,
+                )
             fig.add_trace(bar)
 
         # measures bars
-        for idx in range(len(df.iloc[row]["measures"])):
-            inter_colors = clrs.n_colors(
-                measure_colors[0],
-                measure_colors[1],
-                len(df.iloc[row]["measures"]),
-                "rgb",
-            )
-            x = (
-                [sorted(df.iloc[row]["measures"])[-1 - idx]]
-                if orientation == "h"
-                else [0.5]
-            )
-            y = (
-                [0.5]
-                if orientation == "h"
-                else [sorted(df.iloc[row]["measures"])[-1 - idx]]
-            )
-            bar = go.Bar(
-                x=x,
-                y=y,
-                marker=dict(color=inter_colors[-1 - idx]),
-                name="measures",
-                hoverinfo="x" if orientation == "h" else "y",
-                orientation=orientation,
-                width=0.4,
-                base=0,
-                xaxis="x{}".format(row + 1),
-                yaxis="y{}".format(row + 1),
-            )
+        measures_data = df.iloc[row]["measures"]
+        curr_measure_colors = measure_ncolors[row]
+        sorted_measures = sorted(measures_data) if measures_data else []
+        for idx, val in enumerate(sorted_measures[::-1]):
+            color_idx = -1 - idx
+            if orientation_is_h:
+                bar = go.Bar(
+                    x=[val],
+                    y=[0.5],
+                    marker=dict(color=curr_measure_colors[color_idx]),
+                    name="measures",
+                    hoverinfo="x",
+                    orientation="h",
+                    width=0.4,
+                    base=0,
+                    xaxis=xaxis_str,
+                    yaxis=yaxis_str,
+                )
+            else:
+                bar = go.Bar(
+                    x=[0.5],
+                    y=[val],
+                    marker=dict(color=curr_measure_colors[color_idx]),
+                    name="measures",
+                    hoverinfo="y",
+                    orientation="v",
+                    width=0.4,
+                    base=0,
+                    xaxis=xaxis_str,
+                    yaxis=yaxis_str,
+                )
             fig.add_trace(bar)
 
         # markers
-        x = df.iloc[row]["markers"] if orientation == "h" else [0.5]
-        y = [0.5] if orientation == "h" else df.iloc[row]["markers"]
-        markers = go.Scatter(
-            x=x,
-            y=y,
-            name="markers",
-            hoverinfo="x" if orientation == "h" else "y",
-            xaxis="x{}".format(row + 1),
-            yaxis="y{}".format(row + 1),
-            **scatter_options,
-        )
-
-        fig.add_trace(markers)
+        m = df.iloc[row]["markers"]
+        scatter_args = {
+            "x": m if orientation_is_h else [0.5],
+            "y": [0.5] if orientation_is_h else m,
+            "name": "markers",
+            "hoverinfo": "x" if orientation_is_h else "y",
+            "xaxis": xaxis_str,
+            "yaxis": yaxis_str,
+        }
+        scatter_args.update(scatter_options)
+        markers_trace = go.Scatter(**scatter_args)
+        fig.add_trace(markers_trace)
 
         # titles and subtitles
         title = df.iloc[row]["titles"]
-        if "subtitles" in df:
-            subtitle = "<br>{}".format(df.iloc[row]["subtitles"])
-        else:
-            subtitle = ""
-        label = "<b>{}</b>".format(title) + subtitle
+        subtitle = (
+            "<br>{}".format(df.iloc[row].get("subtitles", ""))
+            if "subtitles" in df
+            else ""
+        )
+        label = "<b>{}</b>{}".format(title, subtitle)
         annot = utils.annotation_dict_for_label(
             label,
-            (num_of_lanes - row if orientation == "h" else row + 1),
+            (num_of_lanes - row if orientation_is_h else row + 1),
             num_of_lanes,
-            vertical_spacing if orientation == "h" else horizontal_spacing,
-            "row" if orientation == "h" else "col",
-            True if orientation == "h" else False,
+            vertical_spacing if orientation_is_h else horizontal_spacing,
+            "row" if orientation_is_h else "col",
+            orientation_is_h,
             False,
         )
-        fig["layout"]["annotations"] += (annot,)
+        annotations.append(annot)
 
     return fig
 
@@ -275,13 +302,12 @@ def create_bullet(
     if not pd:
         raise ImportError("'pandas' must be installed for this figure factory.")
 
-    if utils.is_sequence(data):
+    SEQ = utils.is_sequence(data)
+    if SEQ:
         if not all(isinstance(item, dict) for item in data):
             raise exceptions.PlotlyError(
-                "Every entry of the data argument list, tuple, etc must "
-                "be a dictionary."
+                "Every entry of the data argument list, tuple, etc must be a dictionary."
             )
-
     elif not isinstance(data, pd.DataFrame):
         raise exceptions.PlotlyError(
             "You must input a pandas DataFrame, or a list of dictionaries."
@@ -289,18 +315,19 @@ def create_bullet(
 
     # make DataFrame from data with correct column headers
     col_names = ["titles", "subtitle", "markers", "measures", "ranges"]
-    if utils.is_sequence(data):
+    n = len(data)
+    if SEQ:
         df = pd.DataFrame(
             [
-                [d[titles] for d in data] if titles else [""] * len(data),
-                [d[subtitles] for d in data] if subtitles else [""] * len(data),
-                [d[markers] for d in data] if markers else [[]] * len(data),
-                [d[measures] for d in data] if measures else [[]] * len(data),
-                [d[ranges] for d in data] if ranges else [[]] * len(data),
+                [d[titles] if titles else "" for d in data],
+                [d[subtitles] if subtitles else "" for d in data],
+                [d[markers] if markers else [] for d in data],
+                [d[measures] if measures else [] for d in data],
+                [d[ranges] if ranges else [] for d in data]
             ],
-            index=col_names,
+            index=col_names
         )
-    elif isinstance(data, pd.DataFrame):
+    else:
         df = pd.DataFrame(
             [
                 data[titles].tolist() if titles else [""] * len(data),
@@ -311,41 +338,35 @@ def create_bullet(
             ],
             index=col_names,
         )
-    df = pd.DataFrame.transpose(df)
+    df = df.transpose()
 
     # make sure ranges, measures, 'markers' are not NAN or NONE
     for needed_key in ["ranges", "measures", "markers"]:
         for idx, r in enumerate(df[needed_key]):
             try:
-                r_is_nan = math.isnan(r)
-                if r_is_nan or r is None:
-                    df[needed_key][idx] = []
+                if r is None or (isinstance(r, float) and math.isnan(r)):
+                    df.at[idx, needed_key] = []
             except TypeError:
                 pass
 
-    # validate custom colors
+    # validate custom colors (don't call convert_colors_to_same_type; it returns new list, but not used)
     for colors_list in [range_colors, measure_colors]:
-        if colors_list:
-            if len(colors_list) != 2:
-                raise exceptions.PlotlyError(
-                    "Both 'range_colors' or 'measure_colors' must be a list "
-                    "of two valid colors."
-                )
-            clrs.validate_colors(colors_list)
-            colors_list = clrs.convert_colors_to_same_type(colors_list, "rgb")[0]
+        if colors_list and len(colors_list) != 2:
+            raise exceptions.PlotlyError(
+                "Both 'range_colors' or 'measure_colors' must be a list of two valid colors."
+            )
+        clrs.validate_colors(colors_list)
 
     # default scatter options
     default_scatter = {
         "marker": {"size": 12, "symbol": "diamond-tall", "color": "rgb(0, 0, 0)"}
     }
-
-    if scatter_options == {}:
-        scatter_options.update(default_scatter)
+    marker_opts = scatter_options.get("marker", {})
+    if not marker_opts:
+        scatter_options["marker"] = default_scatter["marker"].copy()
     else:
-        # add default options to scatter_options if they are not present
-        for k in default_scatter["marker"]:
-            if k not in scatter_options["marker"]:
-                scatter_options["marker"][k] = default_scatter["marker"][k]
+        for k, v in default_scatter["marker"].items():
+            marker_opts.setdefault(k, v)
 
     fig = _bullet(
         df,

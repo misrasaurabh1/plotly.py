@@ -94,6 +94,7 @@ from . import (  # noqa: F401
     carto,
     plotlyjs,
 )
+from plotly import exceptions
 
 DEFAULT_PLOTLY_COLORS = [
     "rgb(31, 119, 180)",
@@ -315,14 +316,11 @@ def validate_colors(colors, colortype="tuple"):
     if colors is None:
         colors = DEFAULT_PLOTLY_COLORS
 
+    # Convert Plotly scale or string/hex
     if isinstance(colors, str):
         if colors in PLOTLY_SCALES:
             colors_list = colorscale_to_colors(PLOTLY_SCALES[colors])
-            # TODO: fix _gantt.py/_scatter.py so that they can accept the
-            # actual colorscale and not just a list of the first and last
-            # color in the plotly colorscale. In resolving this issue we
-            # will be removing the immediate line below
-            colors = [colors_list[0]] + [colors_list[-1]]
+            colors = [colors_list[0], colors_list[-1]]
         elif "rgb" in colors or "#" in colors:
             colors = [colors]
         else:
@@ -330,46 +328,41 @@ def validate_colors(colors, colortype="tuple"):
                 "If your colors variable is a string, it must be a "
                 "Plotly scale, an rgb color or a hex color."
             )
-
     elif isinstance(colors, tuple):
         if isinstance(colors[0], Number):
             colors = [colors]
         else:
             colors = list(colors)
 
-    # convert color elements in list to tuple color
-    for j, each_color in enumerate(colors):
+    # Convert all color elements to tuple color
+    for j in range(len(colors)):
+        each_color = colors[j]
         if "rgb" in each_color:
-            each_color = color_parser(each_color, unlabel_rgb)
-            for value in each_color:
-                if value > 255.0:
-                    raise exceptions.PlotlyError(
-                        "Whoops! The elements in your rgb colors "
-                        "tuples cannot exceed 255.0."
-                    )
-            each_color = color_parser(each_color, unconvert_from_RGB_255)
+            tup = color_parser(each_color, unlabel_rgb)
+            if any(v > 255.0 for v in tup):
+                raise exceptions.PlotlyError(
+                    "Whoops! The elements in your rgb colors "
+                    "tuples cannot exceed 255.0."
+                )
+            each_color = color_parser(tup, unconvert_from_RGB_255)
             colors[j] = each_color
-
-        if "#" in each_color:
-            each_color = color_parser(each_color, hex_to_rgb)
-            each_color = color_parser(each_color, unconvert_from_RGB_255)
-
-            colors[j] = each_color
-
-        if isinstance(each_color, tuple):
-            for value in each_color:
-                if value > 1.0:
-                    raise exceptions.PlotlyError(
-                        "Whoops! The elements in your colors tuples "
-                        "cannot exceed 1.0."
-                    )
-            colors[j] = each_color
+        elif "#" in each_color:
+            tup = color_parser(each_color, hex_to_rgb)
+            tup = color_parser(tup, unconvert_from_RGB_255)
+            colors[j] = tup
+        elif isinstance(each_color, tuple):
+            if any(v > 1.0 for v in each_color):
+                raise exceptions.PlotlyError(
+                    "Whoops! The elements in your colors tuples "
+                    "cannot exceed 1.0."
+                )
+            # already a tuple, keep as is
+            continue
 
     if colortype == "rgb" and not isinstance(colors, str):
-        for j, each_color in enumerate(colors):
-            rgb_color = color_parser(each_color, convert_to_RGB_255)
+        for j in range(len(colors)):
+            rgb_color = color_parser(colors[j], convert_to_RGB_255)
             colors[j] = color_parser(rgb_color, label_rgb)
-
     return colors
 
 
@@ -435,57 +428,49 @@ def convert_colors_to_same_type(
         then scale will remain None in the returned tuple
     """
     colors_list = []
-
-    if colors is None and return_default_colors is True:
+    if colors is None and return_default_colors:
         colors_list = DEFAULT_PLOTLY_COLORS[0:num_of_defualt_colors]
-
-    if isinstance(colors, str):
+    elif isinstance(colors, str):
         if colors in PLOTLY_SCALES:
             colors_list = colorscale_to_colors(PLOTLY_SCALES[colors])
             if scale is None:
                 scale = colorscale_to_scale(PLOTLY_SCALES[colors])
-
         elif "rgb" in colors or "#" in colors:
             colors_list = [colors]
-
     elif isinstance(colors, tuple):
         if isinstance(colors[0], Number):
             colors_list = [colors]
         else:
             colors_list = list(colors)
-
     elif isinstance(colors, list):
         colors_list = colors
 
     # validate scale
     if scale is not None:
         validate_scale_values(scale)
-
         if len(colors_list) != len(scale):
             raise exceptions.PlotlyError(
-                "Make sure that the length of your scale matches the length "
-                "of your list of colors which is {}.".format(len(colors_list))
+                f"Make sure that the length of your scale matches the length "
+                f"of your list of colors which is {len(colors_list)}."
             )
 
-    # convert all colors to rgb
-    for j, each_color in enumerate(colors_list):
+    # convert colors to rgb
+    for j in range(len(colors_list)):
+        each_color = colors_list[j]
         if "#" in each_color:
-            each_color = color_parser(each_color, hex_to_rgb)
-            each_color = color_parser(each_color, label_rgb)
-            colors_list[j] = each_color
-
+            tup = color_parser(each_color, hex_to_rgb)
+            colors_list[j] = color_parser(tup, label_rgb)
         elif isinstance(each_color, tuple):
-            each_color = color_parser(each_color, convert_to_RGB_255)
-            each_color = color_parser(each_color, label_rgb)
-            colors_list[j] = each_color
+            colors_list[j] = color_parser(
+                color_parser(each_color, convert_to_RGB_255), label_rgb
+            )
 
     if colortype == "rgb":
         return (colors_list, scale)
     elif colortype == "tuple":
-        for j, each_color in enumerate(colors_list):
-            each_color = color_parser(each_color, unlabel_rgb)
-            each_color = color_parser(each_color, unconvert_from_RGB_255)
-            colors_list[j] = each_color
+        for j in range(len(colors_list)):
+            tup = color_parser(colors_list[j], unlabel_rgb)
+            colors_list[j] = color_parser(tup, unconvert_from_RGB_255)
         return (colors_list, scale)
     else:
         raise exceptions.PlotlyError(
