@@ -32,14 +32,11 @@ format_conversions.update({"jpg": "jpeg"})
 # -----------------
 def raise_format_value_error(val):
     raise ValueError(
-        """
-Invalid value of type {typ} receive as an image format specification.
-    Received value: {v}
+        f"""
+Invalid value of type {type(val)} receive as an image format specification.
+    Received value: {val}
 
-An image format must be specified as one of the following string values:
-    {valid_formats}""".format(
-            typ=type(val), v=val, valid_formats=sorted(format_conversions.keys())
-        )
+An image format must be specified as one of the following string values:{_valid_formats_str}"""
     )
 
 
@@ -74,19 +71,18 @@ def validate_coerce_format(fmt):
     if fmt is None:
         return None
 
-    # Check format type
+    # Check format type and that it's non-empty
     if not isinstance(fmt, str) or not fmt:
         raise_format_value_error(fmt)
 
     # Make lower case
     fmt = fmt.lower()
 
-    # Remove leading period, if any.
-    # For example '.png' is accepted and converted to 'png'
-    if fmt[0] == ".":
+    # Remove leading period if any (and fmt not empty, by above)
+    if fmt.startswith('.'):
         fmt = fmt[1:]
 
-    # Check string value
+    # Check string value, else raise
     if fmt not in format_conversions:
         raise_format_value_error(fmt)
 
@@ -1733,3 +1729,7 @@ The 'file' argument '{file}' is not a string, pathlib.Path object, or file descr
         # We previously succeeded in interpreting `file` as a pathlib object.
         # Now we can use `write_bytes()`.
         path.write_bytes(img_data)
+
+_valid_formats_list = sorted(format_conversions.keys())
+
+_valid_formats_str = "\n    " + str(_valid_formats_list)
