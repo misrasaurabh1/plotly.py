@@ -238,9 +238,9 @@ def split_dict_by_key_prefix(d, prefix):
     """
     no_prefix = dict()
     with_prefix = dict()
-    for k in d.keys():
+    for k, v in d.items():
         if k.startswith(prefix):
-            with_prefix[k] = d[k]
+            with_prefix[k] = v
         else:
-            no_prefix[k] = d[k]
+            no_prefix[k] = v
     return (no_prefix, with_prefix)
