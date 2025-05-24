@@ -67,15 +67,17 @@ def get_dasharray(obj):
     dasharray : string
         The HTML/SVG dasharray code associated with the object.
     """
-    if obj.__dict__.get("_dashSeq", None) is not None:
-        return ",".join(map(str, obj._dashSeq))
+    # Use hasattr for fast attribute check, covers __slots__ and is faster than __dict__.
+    _dashSeq = getattr(obj, "_dashSeq", None)
+    if _dashSeq is not None:
+        # List comp is generally a bit faster than map + str for short lists.
+        return ",".join([str(x) for x in _dashSeq])
     else:
         ls = obj.get_linestyle()
-        dasharray = LINESTYLES.get(ls, "not found")
-        if dasharray == "not found":
+        dasharray = LINESTYLES.get(ls)
+        if dasharray is None and ls not in LINESTYLES:
             warnings.warn(
-                "line style '{0}' not understood: "
-                "defaulting to solid line.".format(ls)
+                f"line style '{ls}' not understood: defaulting to solid line."
             )
             dasharray = LINESTYLES["solid"]
         return dasharray
