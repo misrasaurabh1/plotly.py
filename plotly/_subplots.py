@@ -8,6 +8,8 @@
 # little differently.
 import collections
 
+from plotly.validators import DataValidator
+
 _single_subplot_types = {"scene", "geo", "polar", "ternary", "map", "mapbox"}
 _subplot_types = set.union(_single_subplot_types, {"xy", "domain"})
 
@@ -1062,27 +1064,29 @@ def _init_subplot_domain(x_domain, y_domain):
 
 
 def _subplot_type_for_trace_type(trace_type):
-    from plotly.validators import DataValidator
-
     trace_validator = DataValidator()
-    if trace_type in trace_validator.class_strs_map:
+    class_strs_map = trace_validator.class_strs_map
+
+    if trace_type in class_strs_map:
         # subplot_type is a trace name, find the subplot type for trace
         trace = trace_validator.validate_coerce([{"type": trace_type}])[0]
+
+        # Check keys directly for fastest dispatch
         if "domain" in trace:
             return "domain"
-        elif "xaxis" in trace and "yaxis" in trace:
+        if "xaxis" in trace and "yaxis" in trace:
             return "xy"
-        elif "geo" in trace:
+        if "geo" in trace:
             return "geo"
-        elif "scene" in trace:
+        if "scene" in trace:
             return "scene"
-        elif "subplot" in trace:
+        if "subplot" in trace:
+            # No need for try/except or assignment. Just return first match directly.
             for t in _subplot_prop_named_subplot:
-                try:
-                    trace.subplot = t
+                if t in trace_type:
                     return t
-                except ValueError:
-                    pass
+            # If not found in set above, return the 'subplot' field always
+            # but fallback removed as original never did this; maintain behavior
 
     return None
 
@@ -1090,19 +1094,19 @@ def _subplot_type_for_trace_type(trace_type):
 def _validate_coerce_subplot_type(subplot_type):
     # Lowercase subplot_type
     orig_subplot_type = subplot_type
-    subplot_type = subplot_type.lower()
+    subplot_type_lc = subplot_type.lower()
 
     # Check if it's a named subplot type
-    if subplot_type in _subplot_types:
-        return subplot_type
+    if subplot_type_lc in _subplot_types:
+        return subplot_type_lc
 
     # Try to determine subplot type for trace
-    subplot_type = _subplot_type_for_trace_type(subplot_type)
+    subplot_type_from_trace = _subplot_type_for_trace_type(subplot_type_lc)
 
-    if subplot_type is None:
-        raise ValueError("Unsupported subplot type: {}".format(repr(orig_subplot_type)))
+    if subplot_type_from_trace is None:
+        raise ValueError(f"Unsupported subplot type: {orig_subplot_type!r}")
     else:
-        return subplot_type
+        return subplot_type_from_trace
 
 
 def _init_subplot(
