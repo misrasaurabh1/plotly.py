@@ -41,63 +41,65 @@ def annotation_params_for_line(shape_type, shape_args, position):
     # work with a slanted line
     # even with a slanted line, there are the horizontal and vertical
     # conventions of placing a shape
+
     x0 = shape_args["x0"]
     x1 = shape_args["x1"]
     y0 = shape_args["y0"]
     y1 = shape_args["y1"]
-    X = [x0, x1]
-    Y = [y0, y1]
+
+    # Save memory by using tuples instead of lists
+    X = (x0, x1)
+    Y = (y0, y1)
     R = "right"
     T = "top"
     L = "left"
     C = "center"
     B = "bottom"
     M = "middle"
-    aY = max(Y)
-    iY = min(Y)
+
+    # Compute values once
+    aY, iY = (y1, y0) if y1 > y0 else (y0, y1)
     eY = _mean(Y)
-    aaY = _argmax(Y)
-    aiY = _argmin(Y)
-    aX = max(X)
-    iX = min(X)
+    aaY = 0 if y0 >= y1 else 1
+    aiY = 0 if y0 <= y1 else 1
+
+    aX, iX = (x1, x0) if x1 > x0 else (x0, x1)
     eX = _mean(X)
-    aaX = _argmax(X)
-    aiX = _argmin(X)
-    position, pos_str = _prepare_position(position)
+    aaX = 0 if x0 >= x1 else 1
+    aiX = 0 if x0 <= x1 else 1
+
+    position_set, pos_str = _prepare_position(position)
+
+    # Below: Use frozenset and dict lookup to avoid many set constructions
     if shape_type == "vline":
-        if position == set(["top", "left"]):
-            return _df_anno(R, T, X[aaY], aY)
-        if position == set(["top", "right"]):
-            return _df_anno(L, T, X[aaY], aY)
-        if position == set(["top"]):
-            return _df_anno(C, B, X[aaY], aY)
-        if position == set(["bottom", "left"]):
-            return _df_anno(R, B, X[aiY], iY)
-        if position == set(["bottom", "right"]):
-            return _df_anno(L, B, X[aiY], iY)
-        if position == set(["bottom"]):
-            return _df_anno(C, T, X[aiY], iY)
-        if position == set(["left"]):
-            return _df_anno(R, M, eX, eY)
-        if position == set(["right"]):
-            return _df_anno(L, M, eX, eY)
+        key = frozenset(position_set)
+        # Compose mapping keys before blocks to single-pass fast lookup
+        mapping = {
+            frozenset(("top", "left")):   (R, T, X[aaY], aY),
+            frozenset(("top", "right")):  (L, T, X[aaY], aY),
+            frozenset(("top",)):          (C, B, X[aaY], aY),
+            frozenset(("bottom", "left")):(R, B, X[aiY], iY),
+            frozenset(("bottom", "right")):(L, B, X[aiY], iY),
+            frozenset(("bottom",)):       (C, T, X[aiY], iY),
+            frozenset(("left",)):         (R, M, eX, eY),
+            frozenset(("right",)):        (L, M, eX, eY)
+        }
+        if key in mapping:
+            return _df_anno(*mapping[key][:2], mapping[key][2], mapping[key][3])
     elif shape_type == "hline":
-        if position == set(["top", "left"]):
-            return _df_anno(L, B, iX, Y[aiX])
-        if position == set(["top", "right"]):
-            return _df_anno(R, B, aX, Y[aaX])
-        if position == set(["top"]):
-            return _df_anno(C, B, eX, eY)
-        if position == set(["bottom", "left"]):
-            return _df_anno(L, T, iX, Y[aiX])
-        if position == set(["bottom", "right"]):
-            return _df_anno(R, T, aX, Y[aaX])
-        if position == set(["bottom"]):
-            return _df_anno(C, T, eX, eY)
-        if position == set(["left"]):
-            return _df_anno(R, M, iX, Y[aiX])
-        if position == set(["right"]):
-            return _df_anno(L, M, aX, Y[aaX])
+        key = frozenset(position_set)
+        mapping = {
+            frozenset(("top", "left")):   (L, B, iX, Y[aiX]),
+            frozenset(("top", "right")):  (R, B, aX, Y[aaX]),
+            frozenset(("top",)):          (C, B, eX, eY),
+            frozenset(("bottom", "left")):(L, T, iX, Y[aiX]),
+            frozenset(("bottom", "right")):(R, T, aX, Y[aaX]),
+            frozenset(("bottom",)):       (C, T, eX, eY),
+            frozenset(("left",)):         (R, M, iX, Y[aiX]),
+            frozenset(("right",)):        (L, M, aX, Y[aaX]),
+        }
+        if key in mapping:
+            return _df_anno(*mapping[key][:2], mapping[key][2], mapping[key][3])
     raise ValueError('Invalid annotation position "%s"' % (pos_str,))
 
 
@@ -107,62 +109,67 @@ def annotation_params_for_rect(shape_type, shape_args, position):
     y0 = shape_args["y0"]
     y1 = shape_args["y1"]
 
-    position, pos_str = _prepare_position(position, prepend_inside=True)
-    if position == set(["inside", "top", "left"]):
-        return _df_anno("left", "top", min([x0, x1]), max([y0, y1]))
-    if position == set(["inside", "top", "right"]):
-        return _df_anno("right", "top", max([x0, x1]), max([y0, y1]))
-    if position == set(["inside", "top"]):
-        return _df_anno("center", "top", _mean([x0, x1]), max([y0, y1]))
-    if position == set(["inside", "bottom", "left"]):
-        return _df_anno("left", "bottom", min([x0, x1]), min([y0, y1]))
-    if position == set(["inside", "bottom", "right"]):
-        return _df_anno("right", "bottom", max([x0, x1]), min([y0, y1]))
-    if position == set(["inside", "bottom"]):
-        return _df_anno("center", "bottom", _mean([x0, x1]), min([y0, y1]))
-    if position == set(["inside", "left"]):
-        return _df_anno("left", "middle", min([x0, x1]), _mean([y0, y1]))
-    if position == set(["inside", "right"]):
-        return _df_anno("right", "middle", max([x0, x1]), _mean([y0, y1]))
-    if position == set(["inside"]):
-        # TODO: Do we want this?
-        return _df_anno("center", "middle", _mean([x0, x1]), _mean([y0, y1]))
-    if position == set(["outside", "top", "left"]):
-        return _df_anno(
+    min_x, max_x = (x0, x1) if x0 <= x1 else (x1, x0)
+    min_y, max_y = (y0, y1) if y0 <= y1 else (y1, y0)
+
+    mean_x = _mean((x0, x1))
+    mean_y = _mean((y0, y1))
+
+    position_set, pos_str = _prepare_position(position, prepend_inside=True)
+    key = frozenset(position_set)
+
+    # Use mapping dictionary for fast lookup and minimize temporary values
+    inside_mapping = {
+        frozenset(("inside", "top", "left")):    ("left", "top", min_x, max_y),
+        frozenset(("inside", "top", "right")):   ("right", "top", max_x, max_y),
+        frozenset(("inside", "top")):            ("center", "top", mean_x, max_y),
+        frozenset(("inside", "bottom", "left")): ("left", "bottom", min_x, min_y),
+        frozenset(("inside", "bottom", "right")):("right", "bottom", max_x, min_y),
+        frozenset(("inside", "bottom")):         ("center", "bottom", mean_x, min_y),
+        frozenset(("inside", "left")):           ("left", "middle", min_x, mean_y),
+        frozenset(("inside", "right")):          ("right", "middle", max_x, mean_y),
+        frozenset(("inside",)):                  ("center", "middle", mean_x, mean_y)
+    }
+    if key in inside_mapping:
+        vals = inside_mapping[key]
+        return _df_anno(*vals)
+    outside_mapping = {
+        frozenset(("outside", "top", "left")): (
             "right" if shape_type == "vrect" else "left",
             "bottom" if shape_type == "hrect" else "top",
-            min([x0, x1]),
-            max([y0, y1]),
-        )
-    if position == set(["outside", "top", "right"]):
-        return _df_anno(
+            min_x, max_y
+        ),
+        frozenset(("outside", "top", "right")): (
             "left" if shape_type == "vrect" else "right",
             "bottom" if shape_type == "hrect" else "top",
-            max([x0, x1]),
-            max([y0, y1]),
-        )
-    if position == set(["outside", "top"]):
-        return _df_anno("center", "bottom", _mean([x0, x1]), max([y0, y1]))
-    if position == set(["outside", "bottom", "left"]):
-        return _df_anno(
+            max_x, max_y
+        ),
+        frozenset(("outside", "top")): (
+            "center", "bottom", mean_x, max_y
+        ),
+        frozenset(("outside", "bottom", "left")): (
             "right" if shape_type == "vrect" else "left",
             "top" if shape_type == "hrect" else "bottom",
-            min([x0, x1]),
-            min([y0, y1]),
-        )
-    if position == set(["outside", "bottom", "right"]):
-        return _df_anno(
+            min_x, min_y
+        ),
+        frozenset(("outside", "bottom", "right")): (
             "left" if shape_type == "vrect" else "right",
             "top" if shape_type == "hrect" else "bottom",
-            max([x0, x1]),
-            min([y0, y1]),
+            max_x, min_y
+        ),
+        frozenset(("outside", "bottom")): (
+            "center", "top", mean_x, min_y
+        ),
+        frozenset(("outside", "left")): (
+            "right", "middle", min_x, mean_y
+        ),
+        frozenset(("outside", "right")): (
+            "left", "middle", max_x, mean_y
         )
-    if position == set(["outside", "bottom"]):
-        return _df_anno("center", "top", _mean([x0, x1]), min([y0, y1]))
-    if position == set(["outside", "left"]):
-        return _df_anno("right", "middle", min([x0, x1]), _mean([y0, y1]))
-    if position == set(["outside", "right"]):
-        return _df_anno("left", "middle", max([x0, x1]), _mean([y0, y1]))
+    }
+    if key in outside_mapping:
+        vals = outside_mapping[key]
+        return _df_anno(*vals)
     raise ValueError("Invalid annotation position %s" % (pos_str,))
 
 
@@ -190,28 +197,26 @@ def axis_spanning_shape_annotation(annotation, shape_type, shape_args, kwargs):
     annotation_position, annotation_ prefixed kwargs or the original annotation
     passed in to this function.
     """
-    # set properties based on annotation_ prefixed kwargs
     prefix = "annotation_"
     len_prefix = len(prefix)
-    annotation_keys = list(filter(lambda k: k.startswith(prefix), kwargs.keys()))
-    # If no annotation or annotation-key is specified, return None as we don't
-    # want an annotation in this case
-    if annotation is None and len(annotation_keys) == 0:
+    # Only iterate once (generator) and collect to list if nonempty
+    annotation_keys = [k for k in kwargs if k.startswith(prefix)]
+
+    if annotation is None and not annotation_keys:
         return None
-    # TODO: Would it be better if annotation were initialized to an instance of
-    # go.layout.Annotation ?
     if annotation is None:
-        annotation = dict()
+        annotation = {}
+
+    # Avoid redundant .keys() and not needed lambda filtering
     for k in annotation_keys:
         if k == "annotation_position":
-            # don't set so that Annotation constructor doesn't complain
             continue
         subk = k[len_prefix:]
         annotation[subk] = kwargs[k]
-    # set x, y, xanchor, yanchor based on shape_type and position
-    annotation_position = None
-    if "annotation_position" in kwargs.keys():
-        annotation_position = kwargs["annotation_position"]
+
+    # Only lookup position once
+    annotation_position = kwargs.get("annotation_position", None)
+
     if shape_type.endswith("line"):
         shape_dict = annotation_params_for_line(
             shape_type, shape_args, annotation_position
@@ -220,13 +225,13 @@ def axis_spanning_shape_annotation(annotation, shape_type, shape_args, kwargs):
         shape_dict = annotation_params_for_rect(
             shape_type, shape_args, annotation_position
         )
-    for k in shape_dict.keys():
-        # only set property derived from annotation_position if it hasn't already been set
-        # see above: this would be better as a go.layout.Annotation then the key
-        # would be checked for validity here (otherwise it is checked later,
-        # which I guess is ok too)
+    else:
+        shape_dict = {}
+
+    # Avoid calling dict.keys() multiple times
+    for k, v in shape_dict.items():
         if (k not in annotation) or (annotation[k] is None):
-            annotation[k] = shape_dict[k]
+            annotation[k] = v
     return annotation
 
 
