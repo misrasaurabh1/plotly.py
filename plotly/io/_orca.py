@@ -921,19 +921,20 @@ def orca_env():
     to orca is transformed into a call to nodejs.
     See https://github.com/plotly/orca/issues/149#issuecomment-443506732
     """
-    clear_env_vars = ["NODE_OPTIONS", "ELECTRON_RUN_AS_NODE", "LD_PRELOAD"]
+    clear_env_vars = ("NODE_OPTIONS", "ELECTRON_RUN_AS_NODE", "LD_PRELOAD")
     orig_env_vars = {}
-
     try:
-        # Clear and save
-        orig_env_vars.update(
-            {var: os.environ.pop(var) for var in clear_env_vars if var in os.environ}
-        )
+        # Pop only once for each relevant var
+        pop = os.environ.pop
+        for var in clear_env_vars:
+            if var in os.environ:
+                orig_env_vars[var] = pop(var)
         yield
     finally:
-        # Restore
+        # Restore only what we changed
+        update = os.environ.__setitem__
         for var, val in orig_env_vars.items():
-            os.environ[var] = val
+            update(var, val)
 
 
 # Public orca server interaction functions
@@ -963,230 +964,160 @@ def validate_executable():
     -------
     None
     """
-    # Check state
-    # -----------
-    if status.state != "unvalidated":
-        # Nothing more to do
+    # Short circuit if already validated/running
+    _state = status.state
+    if _state != "unvalidated":
         return
 
-    # Initialize error messages
-    # -------------------------
-    install_location_instructions = """\
-If you haven't installed orca yet, you can do so using conda as follows:
-
-    $ conda install -c plotly plotly-orca
-
-Alternatively, see other installation methods in the orca project README at
-https://github.com/plotly/orca
-
-After installation is complete, no further configuration should be needed.
-
-If you have installed orca, then for some reason plotly.py was unable to
-locate it. In this case, set the `plotly.io.orca.config.executable`
-property to the full path of your orca executable. For example:
-
-    >>> plotly.io.orca.config.executable = '/path/to/orca'
-
-After updating this executable property, try the export operation again.
-If it is successful then you may want to save this configuration so that it
-will be applied automatically in future sessions. You can do this as follows:
-
-    >>> plotly.io.orca.config.save()
-
-If you're still having trouble, feel free to ask for help on the forums at
-https://community.plot.ly/c/api/python
-"""
-
-    # Try to find an executable
-    # -------------------------
-    # Search for executable name or path in config.executable
-    executable = which(config.executable)
-    path = os.environ.get("PATH", os.defpath)
-    formatted_path = path.replace(os.pathsep, "\n    ")
-
-    if executable is None:
-        raise ValueError(
-            """
-The orca executable is required to export figures as static images,
-but it could not be found on the system path.
-
-Searched for executable '{executable}' on the following path:
-    {formatted_path}
-
-{instructions}""".format(
-                executable=config.executable,
-                formatted_path=formatted_path,
-                instructions=install_location_instructions,
-            )
-        )
-
-    # Check if we should run with Xvfb
-    # --------------------------------
-    xvfb_args = [
-        "--auto-servernum",
-        "--server-args",
-        "-screen 0 640x480x24 +extension RANDR +extension GLX",
-        executable,
-    ]
-
-    if config.use_xvfb == True:
-        # Use xvfb
-        xvfb_run_executable = which("xvfb-run")
-        if not xvfb_run_executable:
-            raise ValueError(
-                """
-The plotly.io.orca.config.use_xvfb property is set to True, but the
-xvfb-run executable could not be found on the system path.
-
-Searched for the executable 'xvfb-run' on the following path:
-    {formatted_path}""".format(
-                    formatted_path=formatted_path
-                )
-            )
-
-        executable_list = [xvfb_run_executable] + xvfb_args
-    elif (
-        config.use_xvfb == "auto"
-        and sys.platform.startswith("linux")
-        and not os.environ.get("DISPLAY")
-        and which("xvfb-run")
-    ):
-        # use_xvfb is 'auto', we're on linux without a display server,
-        # and xvfb-run is available. Use it.
-        xvfb_run_executable = which("xvfb-run")
-        executable_list = [xvfb_run_executable] + xvfb_args
-    else:
-        # Do not use xvfb
-        executable_list = [executable]
-
-    # Run executable with --help and see if it's our orca
-    # ---------------------------------------------------
-    invalid_executable_msg = """
-The orca executable is required in order to export figures as static images,
-but the executable that was found at '{executable}'
-does not seem to be a valid plotly orca executable. Please refer to the end of
-this message for details on what went wrong.
-
-{instructions}""".format(
-        executable=executable, instructions=install_location_instructions
+    # Prepare error installation instructions string only if needed
+    install_location_instructions = (
+        "If you haven't installed orca yet, you can do so using conda as follows:\n\n"
+        "    $ conda install -c plotly plotly-orca\n\n"
+        "Alternatively, see other installation methods in the orca project README at\n"
+        "https://github.com/plotly/orca\n\n"
+        "After installation is complete, no further configuration should be needed.\n\n"
+        "If you have installed orca, then for some reason plotly.py was unable to\n"
+        "locate it. In this case, set the `plotly.io.orca.config.executable`\n"
+        "property to the full path of your orca executable. For example:\n\n"
+        "    >>> plotly.io.orca.config.executable = '/path/to/orca'\n\n"
+        "After updating this executable property, try the export operation again.\n"
+        "If it is successful then you may want to save this configuration so that it\n"
+        "will be applied automatically in future sessions. You can do this as follows:\n\n"
+        "    >>> plotly.io.orca.config.save()\n\n"
+        "If you're still having trouble, feel free to ask for help on the forums at\n"
+        "https://community.plot.ly/c/api/python\n"
     )
 
-    # ### Run with Popen so we get access to stdout and stderr
-    with orca_env():
-        p = subprocess.Popen(
-            executable_list + ["--help"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
-
-        help_result, help_error = p.communicate()
-
-    if p.returncode != 0:
-        err_msg = (
-            invalid_executable_msg
-            + """
-Here is the error that was returned by the command
-    $ {executable} --help
-
-[Return code: {returncode}]
-{err_msg}
-""".format(
-                executable=" ".join(executable_list),
-                err_msg=help_error.decode("utf-8"),
-                returncode=p.returncode,
-            )
-        )
-
-        # Check for Linux without X installed.
-        if sys.platform.startswith("linux") and not os.environ.get("DISPLAY"):
-
-            err_msg += """\
-Note: When used on Linux, orca requires an X11 display server, but none was
-detected. Please install Xvfb and configure plotly.py to run orca using Xvfb
-as follows:
-
-    >>> import plotly.io as pio
-    >>> pio.orca.config.use_xvfb = True
-
-You can save this configuration for use in future sessions as follows:
-
-    >>> pio.orca.config.save()
-
-See https://www.x.org/releases/X11R7.6/doc/man/man1/Xvfb.1.xhtml
-for more info on Xvfb
-"""
-        raise ValueError(err_msg)
-
-    if not help_result:
+    exe_name = config.executable
+    executable = which(exe_name)
+    if not executable:
+        # avoid formatting unless needed
+        path = os.environ.get("PATH", os.defpath)
         raise ValueError(
-            invalid_executable_msg
-            + """
-The error encountered is that no output was returned by the command
-    $ {executable} --help
-""".format(
-                executable=" ".join(executable_list)
+            "The orca executable is required to export figures as static images,\n"
+            f"but it could not be found on the system path.\n\n"
+            f"Searched for executable '{exe_name}' on the following path:\n"
+            "    " + path.replace(os.pathsep, "\n    ") + "\n\n"
+            f"{install_location_instructions}"
+        )
+
+    executable_list = None
+    use_xvfb = config.use_xvfb
+
+    # Determine if xvfb-run should be used (avoid multiple which calls)
+    platform_is_linux = sys.platform.startswith("linux")
+    need_xvfb = False
+    xvfb_run_executable = None
+
+    if use_xvfb is True:
+        xvfb_run_executable = which("xvfb-run")
+        if not xvfb_run_executable:
+            path = os.environ.get("PATH", os.defpath)
+            raise ValueError(
+                "The plotly.io.orca.config.use_xvfb property is set to True, but the\n"
+                "xvfb-run executable could not be found on the system path.\n\n"
+                "Searched for the executable 'xvfb-run' on the following path:\n"
+                "    " + path.replace(os.pathsep, "\n    ")
             )
-        )
+        need_xvfb = True
+    elif (use_xvfb == "auto" and platform_is_linux 
+          and not os.environ.get("DISPLAY")):
+        xvfb_run_executable = which("xvfb-run")
+        if xvfb_run_executable:
+            need_xvfb = True
 
-    if "Plotly's image-exporting utilities" not in help_result.decode("utf-8"):
-        raise ValueError(
-            invalid_executable_msg
-            + """
-The error encountered is that unexpected output was returned by the command
-    $ {executable} --help
-
-{help_result}
-""".format(
-                executable=" ".join(executable_list), help_result=help_result
-            )
-        )
-
-    # Get orca version
-    # ----------------
-    # ### Run with Popen so we get access to stdout and stderr
-    with orca_env():
-        p = subprocess.Popen(
-            executable_list + ["--version"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-
-        version_result, version_error = p.communicate()
-
-    if p.returncode != 0:
-        raise ValueError(
-            invalid_executable_msg
-            + """
-An error occurred while trying to get the version of the orca executable.
-Here is the command that plotly.py ran to request the version
-    $ {executable} --version
-
-This command returned the following error:
-
-[Return code: {returncode}]
-{err_msg}
-        """.format(
-                executable=" ".join(executable_list),
-                err_msg=version_error.decode("utf-8"),
-                returncode=p.returncode,
-            )
-        )
-
-    if not version_result:
-        raise ValueError(
-            invalid_executable_msg
-            + """
-The error encountered is that no version was reported by the orca executable.
-Here is the command that plotly.py ran to request the version:
-
-    $ {executable} --version
-""".format(
-                executable=" ".join(executable_list)
-            )
-        )
+    if need_xvfb:
+        # Only build list when needed
+        executable_list = [
+            xvfb_run_executable,
+            "--auto-servernum",
+            "--server-args",
+            "-screen 0 640x480x24 +extension RANDR +extension GLX",
+            executable,
+        ]
     else:
-        version_result = version_result.decode()
+        executable_list = [executable]
 
+    # Define error message template only once, in fast form
+    def invalid_exec_msg():
+        return (
+            "The orca executable is required in order to export figures as static images,\n"
+            f"but the executable that was found at '{executable}'\n"
+            "does not seem to be a valid plotly orca executable. Please refer to the end of\n"
+            "this message for details on what went wrong.\n\n"
+            f"{install_location_instructions}"
+        )
+
+    # Run with --help and check for correct output, using subprocess only once per arg set
+    join_exec = " ".join(executable_list)
+    try:
+        with orca_env():
+            p = subprocess.Popen(
+                executable_list + ["--help"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            help_result, help_error = p.communicate()
+    except Exception as e:
+        raise ValueError(invalid_exec_msg() + f"\n\nSubprocess error: {str(e)}")
+
+    rc = p.returncode
+    if rc != 0 or not help_result:
+        # Only format strings if actually error
+        error_base = (
+            invalid_exec_msg() + "\nHere is the error that was returned by the command\n"
+            f"    $ {join_exec} --help\n\n[Return code: {rc}]\n"
+            f"{help_error.decode('utf-8') if help_error else ''}\n"
+        )
+        # Special Linux without display message
+        if platform_is_linux and not os.environ.get("DISPLAY"):
+            error_base += (
+                "Note: When used on Linux, orca requires an X11 display server, but none was\n"
+                "detected. Please install Xvfb and configure plotly.py to run orca using Xvfb\n"
+                "as follows:\n\n"
+                "    >>> import plotly.io as pio\n"
+                "    >>> pio.orca.config.use_xvfb = True\n\n"
+                "You can save this configuration for use in future sessions as follows:\n"
+                "    >>> pio.orca.config.save()\n\n"
+                "See https://www.x.org/releases/X11R7.6/doc/man/man1/Xvfb.1.xhtml\n"
+                "for more info on Xvfb\n"
+            )
+        raise ValueError(error_base)
+
+    help_result_decoded = help_result.decode("utf-8")
+    if "Plotly's image-exporting utilities" not in help_result_decoded:
+        raise ValueError(
+            invalid_exec_msg() +
+            f"\nThe error encountered is that unexpected output was returned by the command\n"
+            f"    $ {join_exec} --help\n\n{help_result}"
+        )
+
+    # Get orca version, same subprocess usage as before
+    try:
+        with orca_env():
+            p = subprocess.Popen(
+                executable_list + ["--version"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            version_result, version_error = p.communicate()
+    except Exception as e:
+        raise ValueError(invalid_exec_msg() + f"\n\nSubprocess error: {str(e)}")
+
+    rc = p.returncode
+    if rc != 0 or not version_result:
+        raise ValueError(
+            invalid_exec_msg() +
+            "\nAn error occurred while trying to get the version of the orca executable."
+            "\nHere is the command that plotly.py ran to request the version\n"
+            f"    $ {join_exec} --version\n\n"
+            f"This command returned the following error:\n\n[Return code: {rc}]\n"
+            f"{version_error.decode('utf-8') if version_error else ''}\n"
+        )
+
+    # Only decode once
     status._props["executable_list"] = executable_list
-    status._props["version"] = version_result.strip()
+    status._props["version"] = version_result.decode().strip()
     status._props["state"] = "validated"
 
 
