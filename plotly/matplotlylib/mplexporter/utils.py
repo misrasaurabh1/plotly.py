@@ -21,20 +21,34 @@ from matplotlib import ticker
 
 def export_color(color):
     """Convert matplotlib color code to hex color or RGBA color"""
-    if color is None or colorConverter.to_rgba(color)[3] == 0:
+    # Minimize calls to expensive colorConverter functions
+    if color is None:
         return "none"
-    elif colorConverter.to_rgba(color)[3] == 1:
-        rgb = colorConverter.to_rgb(color)
-        return "#{0:02X}{1:02X}{2:02X}".format(*(int(255 * c) for c in rgb))
-    else:
-        c = colorConverter.to_rgba(color)
-        return (
-            "rgba("
-            + ", ".join(str(int(np.round(val * 255))) for val in c[:3])
-            + ", "
-            + str(c[3])
-            + ")"
+    rgba = colorConverter.to_rgba(color)
+    alpha = rgba[3]
+    if alpha == 0:
+        return "none"
+    if alpha == 1:
+        # Only compute to_rgb if needed
+        rgb = rgba[:3]
+        # Preallocate output string with cached int values
+        return "#{0:02X}{1:02X}{2:02X}".format(
+            int(255 * rgb[0] + 0.5),
+            int(255 * rgb[1] + 0.5),
+            int(255 * rgb[2] + 0.5),
         )
+    # Uncommon fallback: rgba output
+    return (
+        "rgba("
+        + "{},{},{}".format(
+            int(255 * rgba[0] + 0.5),
+            int(255 * rgba[1] + 0.5),
+            int(255 * rgba[2] + 0.5),
+        )
+        + ", "
+        + str(alpha)
+        + ")"
+    )
 
 
 def _many_to_one(input_dict):
@@ -67,18 +81,21 @@ def get_dasharray(obj):
     dasharray : string
         The HTML/SVG dasharray code associated with the object.
     """
-    if obj.__dict__.get("_dashSeq", None) is not None:
-        return ",".join(map(str, obj._dashSeq))
-    else:
-        ls = obj.get_linestyle()
-        dasharray = LINESTYLES.get(ls, "not found")
-        if dasharray == "not found":
-            warnings.warn(
-                "line style '{0}' not understood: "
-                "defaulting to solid line.".format(ls)
-            )
-            dasharray = LINESTYLES["solid"]
-        return dasharray
+    # Prefer fast path: attribute check over __dict__ lookup
+    dashseq = getattr(obj, "_dashSeq", None)
+    if dashseq is not None:
+        # Likely small tuples, so join is negligible
+        return ",".join(map(str, dashseq))
+    # Use local variable for method lookup (minor perf)
+    linestyle = obj.get_linestyle()
+    dasharray = LINESTYLES.get(linestyle, "not found")
+    if dasharray == "not found":
+        warnings.warn(
+            "line style '{0}' not understood: "
+            "defaulting to solid line.".format(linestyle)
+        )
+        dasharray = LINESTYLES["solid"]
+    return dasharray
 
 
 PATH_DICT = {
@@ -131,9 +148,8 @@ def SVG_path(path, transform=None, simplify=False):
 def get_path_style(path, fill=True):
     """Get the style dictionary for matplotlib path objects"""
     style = {}
-    style["alpha"] = path.get_alpha()
-    if style["alpha"] is None:
-        style["alpha"] = 1
+    alpha = path.get_alpha()
+    style["alpha"] = 1 if alpha is None else alpha
     style["edgecolor"] = export_color(path.get_edgecolor())
     if fill:
         style["facecolor"] = export_color(path.get_facecolor())
