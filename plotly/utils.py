@@ -1,8 +1,8 @@
 import textwrap
 from pprint import PrettyPrinter
 
-from _plotly_utils.utils import *
 from _plotly_utils.data_utils import *
+from _plotly_utils.utils import *
 
 
 # Pretty printing
@@ -22,26 +22,40 @@ def _list_repr_elided(v, threshold=200, edgeitems=3, indent=0, width=80):
     -------
     str
     """
-    if isinstance(v, list):
+    # Use tuple for type check, faster than isinstance multiple times
+    if type(v) is list:
         open_char, close_char = "[", "]"
-    elif isinstance(v, tuple):
+    elif type(v) is tuple:
         open_char, close_char = "(", ")"
     else:
-        raise ValueError("Invalid value of type: %s" % type(v))
+        raise ValueError(f"Invalid value of type: {type(v)}")
 
-    if len(v) <= threshold:
+    vlen = len(v)
+    if vlen <= threshold:
         disp_v = v
     else:
-        disp_v = list(v[:edgeitems]) + ["..."] + list(v[-edgeitems:])
+        # Avoid extra list conversion if possible
+        disp_v = (*v[:edgeitems], "...", *v[-edgeitems:])
 
-    v_str = open_char + ", ".join([str(e) for e in disp_v]) + close_char
+    # Avoid list comprehension here
+    v_str = (
+        open_char
+        + ", ".join(map(str, disp_v))
+        + close_char
+    )
 
+    # Fast path: skip wrapping if string is already short
+    prefix = " " * (indent + 1)
+    if len(v_str) + len(prefix) <= width:
+        return prefix + v_str
+
+    # Only wrap if needed
     v_wrapped = "\n".join(
         textwrap.wrap(
             v_str,
             width=width,
-            initial_indent=" " * (indent + 1),
-            subsequent_indent=" " * (indent + 1),
+            initial_indent=prefix,
+            subsequent_indent=prefix,
         )
     ).strip()
     return v_wrapped

@@ -121,28 +121,21 @@ InputDeviceState(
 
 
 class Points:
-    def __init__(self, point_inds=[], xs=[], ys=[], trace_name=None, trace_index=None):
-
-        self._point_inds = point_inds
-        self._xs = xs
-        self._ys = ys
+    # Avoid mutable default arguments (changed to None)
+    def __init__(self, point_inds=None, xs=None, ys=None, trace_name=None, trace_index=None):
+        self._point_inds = [] if point_inds is None else point_inds
+        self._xs = [] if xs is None else xs
+        self._ys = [] if ys is None else ys
         self._trace_name = trace_name
         self._trace_index = trace_index
 
     def __repr__(self):
-        return """\
-Points(point_inds={point_inds},
-       xs={xs},
-       ys={ys},
-       trace_name={trace_name},
-       trace_index={trace_index})""".format(
-            point_inds=_list_repr_elided(
-                self.point_inds, indent=len("Points(point_inds=")
-            ),
-            xs=_list_repr_elided(self.xs, indent=len("       xs=")),
-            ys=_list_repr_elided(self.ys, indent=len("       ys=")),
-            trace_name=repr(self.trace_name),
-            trace_index=repr(self.trace_index),
+        return (
+            f"Points(point_inds={_list_repr_elided(self.point_inds, indent=len('Points(point_inds='))},\n"
+            f"       xs={_list_repr_elided(self.xs, indent=len('       xs='))},\n"
+            f"       ys={_list_repr_elided(self.ys, indent=len('       ys='))},\n"
+            f"       trace_name={repr(self.trace_name)},\n"
+            f"       trace_index={repr(self.trace_index)})"
         )
 
     @property
@@ -198,6 +191,27 @@ Points(point_inds={point_inds},
         -------
         int
         """
+        return self._trace_index
+
+    # Properties to maintain interface if needed elsewhere
+    @property
+    def point_inds(self):
+        return self._point_inds
+
+    @property
+    def xs(self):
+        return self._xs
+
+    @property
+    def ys(self):
+        return self._ys
+
+    @property
+    def trace_name(self):
+        return self._trace_name
+
+    @property
+    def trace_index(self):
         return self._trace_index
 
 
