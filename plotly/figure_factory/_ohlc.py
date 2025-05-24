@@ -1,6 +1,7 @@
 from plotly import exceptions
 from plotly.graph_objs import graph_objs
 from plotly.figure_factory import utils
+from itertools import chain
 
 
 # Default colours for finance charts
@@ -187,6 +188,11 @@ def create_ohlc(open, high, low, close, dates=None, direction="both", **kwargs):
     return graph_objs.Figure(data=data, layout=layout)
 
 
+def _fast_flatten(list_of_lists):
+    # Fast flatten for known-list-of-lists
+    return list(chain.from_iterable(list_of_lists))
+
+
 class _OHLC(object):
     """
     Refer to FigureFactory.create_ohlc_increase() for docstring.
@@ -286,10 +292,14 @@ class _OHLC(object):
             trace, flat_decrease_y: y=values for the decreasing trace and
             text_decrease: hovertext for the decreasing trace
         """
-        flat_decrease_x = utils.flatten(self.decrease_x)
-        flat_decrease_y = utils.flatten(self.decrease_y)
-        text_decrease = ("Open", "Open", "High", "Low", "Close", "Close", "") * (
-            len(self.decrease_x)
-        )
-
+        # Use much faster flattening
+        flat_decrease_x = _fast_flatten(self.decrease_x)
+        flat_decrease_y = _fast_flatten(self.decrease_y)
+        n = len(self.decrease_x)
+        if n == 0:
+            text_decrease = ()
+        else:
+            template = ("Open", "Open", "High", "Low", "Close", "Close", "")
+            # Preallocate as tuple multiply avoids intermediate allocations
+            text_decrease = template * n
         return flat_decrease_x, flat_decrease_y, text_decrease
