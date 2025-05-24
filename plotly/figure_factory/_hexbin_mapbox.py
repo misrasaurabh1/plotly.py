@@ -18,8 +18,10 @@ def _project_wgs84_to_latlon(x, y):
     """
     Projects WGS84 to lat and lon, used to get regular hexagons on a mapbox map
     """
-    lon = x * 180 / np.pi
-    lat = (2 * np.arctan(np.exp(y)) - np.pi / 2) * 180 / np.pi
+    # Precompute lon and intermediate exp(y)
+    lon = x * RAD2DEG
+    exp_y = np.exp(y)
+    lat = (2.0 * np.arctan(exp_y) - HALFPI) * RAD2DEG
     return lat, lon
 
 
@@ -524,3 +526,7 @@ create_hexbin_mapbox.__doc__ = make_docstring(
         original_data_marker=["dict", "Scattermapbox marker options."],
     ),
 )
+
+RAD2DEG = 180.0 / np.pi
+
+HALFPI = np.pi / 2.0
