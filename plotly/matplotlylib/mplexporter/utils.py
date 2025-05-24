@@ -17,24 +17,27 @@ from matplotlib.path import Path
 from matplotlib.markers import MarkerStyle
 from matplotlib.transforms import Affine2D
 from matplotlib import ticker
+from functools import lru_cache
 
 
 def export_color(color):
     """Convert matplotlib color code to hex color or RGBA color"""
-    if color is None or colorConverter.to_rgba(color)[3] == 0:
+    if color is None:
         return "none"
-    elif colorConverter.to_rgba(color)[3] == 1:
-        rgb = colorConverter.to_rgb(color)
-        return "#{0:02X}{1:02X}{2:02X}".format(*(int(255 * c) for c in rgb))
-    else:
-        c = colorConverter.to_rgba(color)
-        return (
-            "rgba("
-            + ", ".join(str(int(np.round(val * 255))) for val in c[:3])
-            + ", "
-            + str(c[3])
-            + ")"
+    rgba = _to_rgba_cached(color)
+    alpha = rgba[3]
+    if alpha == 0:
+        return "none"
+    elif alpha == 1:
+        # Fast path: only one conversion needed, slice RGB from RGBA
+        r, g, b = rgba[:3]
+        return "#{0:02X}{1:02X}{2:02X}".format(
+            int(255 * r), int(255 * g), int(255 * b)
         )
+    else:
+        # Use ints, avoid np.str, precompute RGB
+        rgb_int = [str(int(round(val * 255))) for val in rgba[:3]]
+        return "rgba(" + ", ".join(rgb_int) + ", " + str(alpha) + ")"
 
 
 def _many_to_one(input_dict):
@@ -67,15 +70,17 @@ def get_dasharray(obj):
     dasharray : string
         The HTML/SVG dasharray code associated with the object.
     """
-    if obj.__dict__.get("_dashSeq", None) is not None:
-        return ",".join(map(str, obj._dashSeq))
+    d = obj.__dict__
+    dash_seq = d.get("_dashSeq", None)
+    if dash_seq is not None:
+        # Faster join using list comprehension; avoids extra function call overhead
+        return ",".join([str(x) for x in dash_seq])
     else:
         ls = obj.get_linestyle()
         dasharray = LINESTYLES.get(ls, "not found")
         if dasharray == "not found":
             warnings.warn(
-                "line style '{0}' not understood: "
-                "defaulting to solid line.".format(ls)
+                "line style '{0}' not understood: defaulting to solid line.".format(ls)
             )
             dasharray = LINESTYLES["solid"]
         return dasharray
@@ -258,11 +263,15 @@ def get_axis_properties(axis):
 
 def get_grid_style(axis):
     gridlines = axis.get_gridlines()
-    if axis._major_tick_kw["gridOn"] and len(gridlines) > 0:
-        color = export_color(gridlines[0].get_color())
-        alpha = gridlines[0].get_alpha()
-        dasharray = get_dasharray(gridlines[0])
-        return dict(gridOn=True, color=color, dasharray=dasharray, alpha=alpha)
+    # cache for speed
+    _major_tick_kw = axis._major_tick_kw
+    if _major_tick_kw["gridOn"] and len(gridlines) > 0:
+        gridline0 = gridlines[0]
+        color = export_color(gridline0.get_color())
+        alpha = gridline0.get_alpha()
+        dasharray = get_dasharray(gridline0)
+        # Use dict literal, this is slightly faster than dict() in Python >=3.6
+        return {"gridOn": True, "color": color, "dasharray": dasharray, "alpha": alpha}
     else:
         return {"gridOn": False}
 
@@ -381,3 +390,15 @@ def image_to_base64(image):
 
     binary_buffer.seek(0)
     return base64.b64encode(binary_buffer.read()).decode("utf-8")
+
+
+# Cache converter results for repeated colors, which happens a LOT.
+@lru_cache(maxsize=2048)
+def _to_rgba_cached(color):
+    return colorConverter.to_rgba(color)
+
+# _to_rgb_cached returns an rgb tuple, slicing the alpha from rgba
+@lru_cache(maxsize=2048)
+def _to_rgb_cached(color):
+    # colorConverter.to_rgb is just to_rgba without last component
+    return colorConverter.to_rgba(color)[:3]
