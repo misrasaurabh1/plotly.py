@@ -136,24 +136,26 @@ def _remake_path_from_tuple(props):
     """
     try to remake a path using the properties in props
     """
-    if len(props) == 0:
+    if not props:
         return ""
-
-    def _add_square_brackets_to_number(n):
-        if type(n) == type(int()):
-            return "[%d]" % (n,)
-        return n
-
-    def _prepend_dot_if_not_number(s):
+    out = []
+    first = props[0]
+    # handle first element
+    if type(first) is int:
+        out.append("[%d]" % first)
+    else:
+        out.append(first)
+    # handle the rest, prepend '.' if not a bracketed number
+    for n in props[1:]:
+        if type(n) is int:
+            s = "[%d]" % n
+        else:
+            s = n
         if not s.startswith("["):
-            return "." + s
-        return s
-
-    props_all_str = list(map(_add_square_brackets_to_number, props))
-    props_w_underscore = props_all_str[:1] + list(
-        map(_prepend_dot_if_not_number, props_all_str[1:])
-    )
-    return "".join(props_w_underscore)
+            out.append("." + s)
+        else:
+            out.append(s)
+    return "".join(out)
 
 
 def _check_path_in_prop_tree(obj, path, error_cast=None):
