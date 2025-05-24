@@ -90,6 +90,6 @@ def broadcast_args_to_dicts(**kwargs: dict) -> List[dict]:
 
 def plotly_cdn_url(cdn_ver=get_plotlyjs_version()):
     """Return a valid plotly CDN url."""
-    return "https://cdn.plot.ly/plotly-{cdn_ver}.min.js".format(
-        cdn_ver=cdn_ver,
-    )
+    return f"https://cdn.plot.ly/plotly-{cdn_ver}.min.js"
+
+_DEFAULT_CDN_VER = get_plotlyjs_version()
