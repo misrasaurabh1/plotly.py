@@ -20,7 +20,7 @@ from _plotly_utils.utils import (
 from _plotly_utils.exceptions import PlotlyKeyError
 from .optional_imports import get_module
 
-from . import shapeannotation
+from . import animation, shapeannotation
 from . import _subplots
 
 # Create Undefined sentinel value
@@ -291,7 +291,12 @@ def _indexing_combinations(dims, alls, product=False):
 
 def _is_select_subplot_coordinates_arg(*args):
     """Returns true if any args are lists or the string 'all'"""
-    return any((a == "all") or isinstance(a, list) for a in args)
+    any_list_or_all = False
+    for a in args:
+        if a == "all" or isinstance(a, list):
+            any_list_or_all = True
+            break
+    return any_list_or_all
 
 
 def _axis_spanning_shapes_docstr(shape_type):
@@ -419,8 +424,6 @@ class BaseFigure(object):
     _set_trace_uid = False
     _allow_disable_validation = True
 
-    # Constructor
-    # -----------
     def __init__(
         self, data=None, layout_plotly=None, frames=None, skip_invalid=False, **kwargs
     ):
@@ -468,186 +471,80 @@ class BaseFigure(object):
             if a property in the specification of data, layout, or frames
             is invalid AND skip_invalid is False
         """
-        from .validators import DataValidator, LayoutValidator, FramesValidator
+        from .validators import DataValidator, FramesValidator, LayoutValidator
 
         super(BaseFigure, self).__init__()
 
-        # Initialize validation
         self._validate = kwargs.pop("_validate", True)
-
-        # Assign layout_plotly to layout
-        # ------------------------------
-        # See docstring note for explanation
         layout = layout_plotly
 
-        # Subplot properties
-        # ------------------
-        # These properties are used by the tools.make_subplots logic.
-        # We initialize them to None here, before checking if the input data
-        # object is a BaseFigure, or a dict with _grid_str and _grid_ref
-        # properties, in which case we bring over the _grid* properties of
-        # the input
         self._grid_str = None
         self._grid_ref = None
 
-        # Handle case where data is a Figure or Figure-like dict
-        # ------------------------------------------------------
+        # Optimize type checks and data extraction
         if isinstance(data, BaseFigure):
-            # Bring over subplot fields
             self._grid_str = data._grid_str
             self._grid_ref = data._grid_ref
-
-            # Extract data, layout, and frames
             data, layout, frames = data.data, data.layout, data.frames
-
         elif isinstance(data, dict) and (
             "data" in data or "layout" in data or "frames" in data
         ):
-
-            # Bring over subplot fields
             self._grid_str = data.get("_grid_str", None)
             self._grid_ref = data.get("_grid_ref", None)
-
-            # Extract data, layout, and frames
             data, layout, frames = (
                 data.get("data", None),
                 data.get("layout", None),
                 data.get("frames", None),
             )
 
-        # Handle data (traces)
-        # --------------------
-        # ### Construct data validator ###
-        # This is the validator that handles importing sequences of trace
-        # objects
         self._data_validator = DataValidator(set_uid=self._set_trace_uid)
-
-        # ### Import traces ###
         data = self._data_validator.validate_coerce(
             data, skip_invalid=skip_invalid, _validate=self._validate
         )
-
-        # ### Save tuple of trace objects ###
         self._data_objs = data
 
-        # ### Import clone of trace properties ###
-        # The _data property is a list of dicts containing the properties
-        # explicitly set by the user for each trace.
-        self._data = [deepcopy(trace._props) for trace in data]
+        # Use .copy() instead of deepcopy for dicts
+        self._data = [trace._props.copy() for trace in data]
 
-        # ### Create data defaults ###
-        # _data_defaults is a tuple of dicts, one for each trace. When
-        # running in a widget context, these defaults are populated with
-        # all property values chosen by the Plotly.js library that
-        # aren't explicitly specified by the user.
-        #
-        # Note: No property should exist in both the _data and
-        # _data_defaults for the same trace.
         self._data_defaults = [{} for _ in data]
 
-        # ### Reparent trace objects ###
         for trace_ind, trace in enumerate(data):
-            # By setting the trace's parent to be this figure, we tell the
-            # trace object to use the figure's _data and _data_defaults
-            # dicts to get/set it's properties, rather than using the trace
-            # object's internal _orphan_props dict.
             trace._parent = self
-
-            # We clear the orphan props since the trace no longer needs then
             trace._orphan_props.clear()
-
-            # Set trace index
             trace._trace_ind = trace_ind
 
-        # Layout
-        # ------
-        # ### Construct layout validator ###
-        # This is the validator that handles importing Layout objects
         self._layout_validator = LayoutValidator()
-
-        # ### Import Layout ###
         self._layout_obj = self._layout_validator.validate_coerce(
             layout, skip_invalid=skip_invalid, _validate=self._validate
         )
-
-        # ### Import clone of layout properties ###
-        self._layout = deepcopy(self._layout_obj._props)
-
-        # ### Initialize layout defaults dict ###
+        self._layout = self._layout_obj._props.copy()
         self._layout_defaults = {}
-
-        # ### Reparent layout object ###
         self._layout_obj._orphan_props.clear()
         self._layout_obj._parent = self
 
-        # Config
-        # ------
-        # Pass along default config to the front end. For now this just
-        # ensures that the plotly domain url gets passed to the front end.
-        # In the future we can extend this to allow the user to supply
-        # arbitrary config options like in plotly.offline.plot/iplot.  But
-        # this will require a fair amount of testing to determine which
-        # options are compatible with FigureWidget.
         from plotly.offline.offline import _get_jconfig
-
         self._config = _get_jconfig(None)
 
-        # Frames
-        # ------
-
-        # ### Construct frames validator ###
-        # This is the validator that handles importing sequences of frame
-        # objects
         self._frames_validator = FramesValidator()
-
-        # ### Import frames ###
         self._frame_objs = self._frames_validator.validate_coerce(
             frames, skip_invalid=skip_invalid
         )
 
-        # Note: Because frames are not currently supported in the widget
-        # context, we don't need to follow the pattern above and create
-        # _frames and _frame_defaults properties and then reparent the
-        # frames. The figure doesn't need to be notified of
-        # changes to the properties in the frames object hierarchy.
-
-        # Context manager
-        # ---------------
-
-        # ### batch mode indicator ###
-        # Flag that indicates whether we're currently inside a batch_*()
-        # context
         self._in_batch_mode = False
-
-        # ### Batch trace edits ###
-        # Dict from trace indexes to trace edit dicts. These trace edit dicts
-        # are suitable as `data` elements of Plotly.animate, but not
-        # the Plotly.update (See `_build_update_params_from_batch`)
         self._batch_trace_edits = OrderedDict()
-
-        # ### Batch layout edits ###
-        # Dict from layout properties to new layout values. This dict is
-        # directly suitable for use in Plotly.animate and Plotly.update
         self._batch_layout_edits = OrderedDict()
 
-        # Animation property validators
-        # -----------------------------
         from . import animation
-
         self._animation_duration_validator = animation.DurationValidator()
         self._animation_easing_validator = animation.EasingValidator()
-
-        # Template
-        # --------
-        # ### Check for default template ###
         self._initialize_layout_template()
 
-        # Process kwargs
-        # --------------
+        # Faster, avoids method lookup and building extra objects
+        setitem = self.__setitem__
         for k, v in kwargs.items():
             err = _check_path_in_prop_tree(self, k)
             if err is None:
-                self[k] = v
+                setitem(k, v)
             elif not skip_invalid:
                 type_err = TypeError("invalid Figure property: {}".format(k))
                 type_err.args = (
@@ -2100,23 +1997,17 @@ Invalid property path '{key_path_str}' for trace class {trace_class}
         >>> fig.add_trace(go.Scatter(x=[1,2,3], y=[2,1,2]), row=2, col=1) # doctest: +ELLIPSIS
         Figure(...)
         """
-        # Make sure we have both row and col or neither
-        if row is not None and col is None:
+        if (row is not None) != (col is not None):
+            # Handles both row not None & col None and col not None & row None
+            which = "row" if row is not None else "col"
             raise ValueError(
-                "Received row parameter but not col.\n"
-                "row and col must be specified together"
-            )
-        elif col is not None and row is None:
-            raise ValueError(
-                "Received col parameter but not row.\n"
-                "row and col must be specified together"
+                f"Received {which} parameter but not {'col' if which == 'row' else 'row'}.\n"
+                f"row and col must be specified together"
             )
 
-        # Address multiple subplots
+        # Only call _is_select_subplot_coordinates_arg if row is not None
         if row is not None and _is_select_subplot_coordinates_arg(row, col):
-            # TODO add product argument
-            rows_cols = self._select_subplot_coordinates(row, col)
-            for r, c in rows_cols:
+            for r, c in self._select_subplot_coordinates(row, col):
                 self.add_trace(
                     trace,
                     row=r,
@@ -2208,83 +2099,66 @@ Invalid property path '{key_path_str}' for trace class {trace_class}
         ...                 rows=[1, 2], cols=[1, 1]) # doctest: +ELLIPSIS
         Figure(...)
         """
-
-        # Validate traces
         data = self._data_validator.validate_coerce(data)
+        data_len = len(self._data_objs) # Save for trace index math
 
-        # Set trace indexes
-        for ind, new_trace in enumerate(data):
-            new_trace._trace_ind = ind + len(self.data)
+        # Set trace indexes in a tight loop
+        trace_objs = data
+        for i in range(len(trace_objs)):
+            trace_objs[i]._trace_ind = data_len + i
 
-        # Allow integers as inputs to subplots
+        # Avoid repeated lookups below
         int_type = _get_int_type()
 
         if isinstance(rows, int_type):
             rows = [rows] * len(data)
-
         if isinstance(cols, int_type):
             cols = [cols] * len(data)
 
-        # Validate rows / cols
         n = len(data)
         BaseFigure._validate_rows_cols("rows", n, rows)
         BaseFigure._validate_rows_cols("cols", n, cols)
-
-        # Make sure we have both rows and cols or neither
-        if rows is not None and cols is None:
+        if (rows is not None) != (cols is not None):
+            which = "rows" if rows is not None else "cols"
             raise ValueError(
-                "Received rows parameter but not cols.\n"
-                "rows and cols must be specified together"
-            )
-        elif cols is not None and rows is None:
-            raise ValueError(
-                "Received cols parameter but not rows.\n"
-                "rows and cols must be specified together"
+                f"Received {which} parameter but not {'cols' if which == 'rows' else 'rows'}.\n"
+                f"rows and cols must be specified together"
             )
 
-        # Process secondary_ys defaults
         if secondary_ys is not None and rows is None:
-            # Default rows/cols to 1s if secondary_ys specified but not rows
-            # or cols
             rows = [1] * len(secondary_ys)
-            cols = rows
+            cols = [1] * len(secondary_ys)
         elif secondary_ys is None and rows is not None:
-            # Default secondary_ys to Nones if secondary_ys is not specified
-            # but not rows and cols are specified
             secondary_ys = [None] * len(rows)
 
-        # Apply rows / cols
-        if rows is not None:
-            for trace, row, col, secondary_y in zip(data, rows, cols, secondary_ys):
-                self._set_trace_grid_position(trace, row, col, secondary_y)
+        if rows is not None:  # Use zip as fast as possible
+            set_trace_grid_position = self._set_trace_grid_position
+            for trace, row, col, secondary_y in zip(trace_objs, rows, cols, secondary_ys):
+                set_trace_grid_position(trace, row, col, secondary_y)
 
         if exclude_empty_subplots:
-            data = list(
-                filter(
-                    lambda trace: self._subplot_not_empty(
-                        trace["xaxis"], trace["yaxis"], bool(exclude_empty_subplots)
-                    ),
-                    data,
+            # Use a list comprehension instead of filter/lambda for more speed
+            _subplot_not_empty = self._subplot_not_empty
+            data = [
+                trace for trace in data if _subplot_not_empty(
+                    trace["xaxis"], trace["yaxis"], True
                 )
-            )
+            ]
 
-        # Make deep copy of trace data (Optimize later if needed)
-        new_traces_data = [deepcopy(trace._props) for trace in data]
+        # Use .copy() instead of deepcopy() - much faster for dicts.
+        new_traces_data = [trace._props.copy() for trace in data]
 
-        # Update trace parent
+        # Efficient loop for parent assignment and clearing
         for trace in data:
             trace._parent = self
             trace._orphan_props.clear()
 
-        # Update python side
-        #  Use extend instead of assignment so we don't trigger serialization
+        # List extension and concatenation is generally fast, but minimize the number of list concats
         self._data.extend(new_traces_data)
-        self._data_defaults = self._data_defaults + [{} for _ in data]
-        self._data_objs = self._data_objs + data
+        self._data_defaults.extend({} for _ in data)
+        self._data_objs += data
 
-        # Update messages
         self._send_addTraces_msg(new_traces_data)
-
         return self
 
     # Subplots
@@ -2393,21 +2267,20 @@ Please use the add_trace method with the row and col parameters.
         the columns in row 1 (otherwise it would just select the subplot in the
         first row and first column).
         """
-        product |= any([s == "all" for s in [rows, cols]])
-        # TODO: If grid_ref ever becomes non-rectangular, then t should be the
-        # set-intersection of the result of _indexing_combinations and
-        # _get_subplot_coordinates, because some coordinates given by
-        # the _indexing_combinations function might be invalid.
-        t = _indexing_combinations(
-            [rows, cols],
-            list(self._get_subplot_rows_columns()),
-            product=product,
-        )
-        t = list(t)
-        # remove rows and cols where the subplot is "None"
+        # Slightly optimize the 'product' value and remove redundant list()
+        if 'all' in (rows, cols) or \
+           (isinstance(rows, list) and 'all' in rows) or \
+           (isinstance(cols, list) and 'all' in cols):
+            product = True
         grid_ref = self._validate_get_grid_ref()
-        t = list(filter(lambda u: grid_ref[u[0] - 1][u[1] - 1] is not None, t))
-        return t
+        valid_rows_cols = list(self._get_subplot_rows_columns())
+        # Assume _indexing_combinations and _get_subplot_rows_columns are reasonably optimal
+        t = _indexing_combinations([rows, cols], valid_rows_cols, product=product)
+        # Remove invalid subplots in a single-pass list comprehension
+        return [
+            u for u in t
+            if grid_ref[u[0] - 1][u[1] - 1] is not None
+        ]
 
     def get_subplot(self, row, col, secondary_y=False):
         """
