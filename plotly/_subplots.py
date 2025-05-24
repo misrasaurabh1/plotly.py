@@ -1052,12 +1052,10 @@ def _init_subplot_single(
 
 def _init_subplot_domain(x_domain, y_domain):
     # No change to layout since domain traces are labeled individually
-    subplot_ref = SubplotRef(
-        subplot_type="domain",
-        layout_keys=(),
-        trace_kwargs={"domain": {"x": tuple(x_domain), "y": tuple(y_domain)}},
-    )
-
+    domain_tuple_x = tuple(x_domain)
+    domain_tuple_y = tuple(y_domain)
+    trace_kwargs = {"domain": {"x": domain_tuple_x, "y": domain_tuple_y}}
+    subplot_ref = SubplotRef("domain", (), trace_kwargs)
     return (subplot_ref,)
 
 
