@@ -50,18 +50,8 @@ def _return_label(original_label, facet_labels, facet_var):
 
 
 def _legend_annotation(color_name):
-    legend_title = dict(
-        textangle=0,
-        xanchor="left",
-        yanchor="middle",
-        x=LEGEND_ANNOT_X,
-        y=1.03,
-        showarrow=False,
-        xref="paper",
-        yref="paper",
-        text="factor({})".format(color_name),
-        font=dict(size=13, color="#000000"),
-    )
+    legend_title = _LEGEND_BASE.copy()
+    legend_title["text"] = f"factor({color_name})"
     return legend_title
 
 
@@ -1196,3 +1186,15 @@ def create_facet_grid(
                     fig["layout"][key]["range"] = [min_range, max_range]
 
     return fig
+
+_LEGEND_BASE = {
+    "textangle": 0,
+    "xanchor": "left",
+    "yanchor": "middle",
+    "x": LEGEND_ANNOT_X,
+    "y": 1.03,
+    "showarrow": False,
+    "xref": "paper",
+    "yref": "paper",
+    "font": {"size": 13, "color": "#000000"},
+}
