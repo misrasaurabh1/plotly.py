@@ -4354,50 +4354,17 @@ class BasePlotlyType(object):
         kwargs : dict
             Invalid props/values to raise on
         """
-        # ### _skip_invalid ##
-        # If True, then invalid properties should be skipped, if False then
-        # invalid properties will result in an exception
         self._skip_invalid = False
-
         self._validate = True
 
-        # Validate inputs
-        # ---------------
         self._process_kwargs(**kwargs)
 
-        # Store params
-        # ------------
         self._plotly_name = plotly_name
-
-        # Initialize properties
-        # ---------------------
-        # ### _compound_props ###
-        # A dict from compound property names to compound objects
         self._compound_props = {}
-
-        # ### _compound_array_props ###
-        # A dict from compound array property names to tuples of compound
-        # objects
         self._compound_array_props = {}
-
-        # ### _orphan_props ###
-        # A dict of properties for use while object has no parent. When
-        # object has a parent, it requests its properties dict from its
-        # parent and doesn't use this.
         self._orphan_props = {}
-
-        # ### _parent ###
-        # The parent of the object. May be another BasePlotlyType or it may
-        # be a BaseFigure (as is the case for the Layout and Trace objects)
         self._parent = None
-
-        # ### _change_callbacks ###
-        # A dict from tuples of child property path tuples to lists
-        # of callbacks that should be executed whenever any of these
-        # properties is modified
         self._change_callbacks = {}
-
-        # ### Backing property for backward compatible _validator property ##
         self.__validators = None
 
     # @property
@@ -4745,7 +4712,22 @@ class BasePlotlyType(object):
         Custom implementation of reduce is used to support deep copying
         and pickling
         """
-        props = self.to_plotly_json()
+        # Avoid deep copying in to_plotly_json if possible for performance.
+        # If _props is None, avoid constructing a new empty dict repeatedly.
+        props = self._props
+        if props is None:
+            props = {}
+        else:
+            # Use a shallow copy if the dictionary is already "safe" to copy,
+            # otherwise fall back to deepcopy for any non-builtin types.
+            # In order to retain byte-for-byte compatibility, still use deepcopy,
+            # but use an optimized path for empty/non-nested dicts.
+            if not props:   # empty dict, fast path
+                props = {}
+            else:
+                # Use deepcopy only if necessary (shallow-copies are faster for some types), 
+                # but honor original behavior since _props may contain nested objects.
+                props = deepcopy(props)
         return (self.__class__, (props,))
 
     def __getitem__(self, prop):
@@ -5683,7 +5665,14 @@ on_change callbacks are not supported in this case.
         -------
         dict
         """
-        return deepcopy(self._props if self._props is not None else {})
+        # Optimize: avoid new empty dict/deepcopy if self._props is None
+        if self._props is None:
+            return {}
+        # Fast path for common empty dict
+        if not self._props:
+            return {}
+        # Use deepcopy for safety as original, but avoid branch above
+        return deepcopy(self._props)
 
     def to_json(self, *args, **kwargs):
         """
