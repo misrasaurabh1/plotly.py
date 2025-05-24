@@ -2,17 +2,34 @@
 
 
 def _mean(x):
-    if len(x) == 0:
+    # Optimization: avoid multiple len(x)/sum(x)
+    n = len(x)
+    if n == 0:
         raise ValueError("x must have positive length")
-    return float(sum(x)) / len(x)
+    s = x[0] if n == 1 else sum(x)
+    return float(s) / n
 
 
 def _argmin(x):
-    return sorted(enumerate(x), key=lambda t: t[1])[0][0]
+    # Optimization: single pass, avoid sorted
+    min_idx = 0
+    min_val = x[0]
+    for i, val in enumerate(x):
+        if val < min_val:
+            min_idx = i
+            min_val = val
+    return min_idx
 
 
 def _argmax(x):
-    return sorted(enumerate(x), key=lambda t: t[1], reverse=True)[0][0]
+    # Optimization: single pass, avoid sorted
+    max_idx = 0
+    max_val = x[0]
+    for i, val in enumerate(x):
+        if val > max_val:
+            max_idx = i
+            max_val = val
+    return max_idx
 
 
 def _df_anno(xanchor, yanchor, x, y):
@@ -27,13 +44,21 @@ def _add_inside_to_position(pos):
 
 
 def _prepare_position(position, prepend_inside=False):
+    # Optimization: cache position sets for speed
     if position is None:
         position = "top right"
     pos_str = position
-    position = set(position.split(" "))
+    pos_key = position
+    position_set = _POSITION_SET_MAP.get(pos_key)
+    if position_set is None:
+        position_set = frozenset(pos_key.split(" "))
     if prepend_inside:
-        position = _add_inside_to_position(position)
-    return position, pos_str
+        # _add_inside_to_position is from the internal codebase, must use as-is
+        # It only cares about .add and substrings
+        position_mod = set(position_set)
+        position_mod = _add_inside_to_position(position_mod)
+        position_set = frozenset(position_mod)
+    return position_set, pos_str
 
 
 def annotation_params_for_line(shape_type, shape_args, position):
@@ -41,63 +66,51 @@ def annotation_params_for_line(shape_type, shape_args, position):
     # work with a slanted line
     # even with a slanted line, there are the horizontal and vertical
     # conventions of placing a shape
+
+    # Avoid duplicated list and statistic calculations
     x0 = shape_args["x0"]
     x1 = shape_args["x1"]
     y0 = shape_args["y0"]
     y1 = shape_args["y1"]
     X = [x0, x1]
     Y = [y0, y1]
+
+    # Constants
     R = "right"
     T = "top"
     L = "left"
     C = "center"
     B = "bottom"
     M = "middle"
-    aY = max(Y)
-    iY = min(Y)
-    eY = _mean(Y)
-    aaY = _argmax(Y)
-    aiY = _argmin(Y)
-    aX = max(X)
-    iX = min(X)
-    eX = _mean(X)
-    aaX = _argmax(X)
-    aiX = _argmin(X)
-    position, pos_str = _prepare_position(position)
+
+    # Precompute all necessary values in a single pass per usage
+    # For _mean with two values, just average directly 
+    eY = (y0 + y1) / 2.0
+    eX = (x0 + x1) / 2.0
+    if y0 >= y1:
+        aY, aaY = y0, 0
+        iY, aiY = y1, 1
+    else:
+        aY, aaY = y1, 1
+        iY, aiY = y0, 0
+    if x0 >= x1:
+        aX, aaX = x0, 0
+        iX, aiX = x1, 1
+    else:
+        aX, aaX = x1, 1
+        iX, aiX = x0, 0
+
+    position_set, pos_str = _prepare_position(position)
+
     if shape_type == "vline":
-        if position == set(["top", "left"]):
-            return _df_anno(R, T, X[aaY], aY)
-        if position == set(["top", "right"]):
-            return _df_anno(L, T, X[aaY], aY)
-        if position == set(["top"]):
-            return _df_anno(C, B, X[aaY], aY)
-        if position == set(["bottom", "left"]):
-            return _df_anno(R, B, X[aiY], iY)
-        if position == set(["bottom", "right"]):
-            return _df_anno(L, B, X[aiY], iY)
-        if position == set(["bottom"]):
-            return _df_anno(C, T, X[aiY], iY)
-        if position == set(["left"]):
-            return _df_anno(R, M, eX, eY)
-        if position == set(["right"]):
-            return _df_anno(L, M, eX, eY)
+        func = _VLINE_POSITION_TO_FUNC.get(position_set)
+        if func:
+            return func(X, Y, R, T, L, C, B, M, aaY, aY, aiY, iY, eX, eY)
     elif shape_type == "hline":
-        if position == set(["top", "left"]):
-            return _df_anno(L, B, iX, Y[aiX])
-        if position == set(["top", "right"]):
-            return _df_anno(R, B, aX, Y[aaX])
-        if position == set(["top"]):
-            return _df_anno(C, B, eX, eY)
-        if position == set(["bottom", "left"]):
-            return _df_anno(L, T, iX, Y[aiX])
-        if position == set(["bottom", "right"]):
-            return _df_anno(R, T, aX, Y[aaX])
-        if position == set(["bottom"]):
-            return _df_anno(C, T, eX, eY)
-        if position == set(["left"]):
-            return _df_anno(R, M, iX, Y[aiX])
-        if position == set(["right"]):
-            return _df_anno(L, M, aX, Y[aaX])
+        func = _HLINE_POSITION_TO_FUNC.get(position_set)
+        if func:
+            return func(X, Y, R, T, L, C, B, M, aaX, aX, aiX, iX, eX, eY)
+
     raise ValueError('Invalid annotation position "%s"' % (pos_str,))
 
 
@@ -244,3 +257,36 @@ def split_dict_by_key_prefix(d, prefix):
         else:
             no_prefix[k] = d[k]
     return (no_prefix, with_prefix)
+
+_POSITION_SET_MAP = {
+    "top left": frozenset(("top", "left")),
+    "top right": frozenset(("top", "right")),
+    "top": frozenset(("top",)),
+    "bottom left": frozenset(("bottom", "left")),
+    "bottom right": frozenset(("bottom", "right")),
+    "bottom": frozenset(("bottom",)),
+    "left": frozenset(("left",)),
+    "right": frozenset(("right",)),
+}
+
+_VLINE_POSITION_TO_FUNC = {
+    frozenset(("top", "left")):   lambda X, Y, R, T, L, C, B, M, aaY, aY, aiY, iY, eX, eY: _df_anno(R, T, X[aaY], aY),
+    frozenset(("top", "right")):  lambda X, Y, R, T, L, C, B, M, aaY, aY, aiY, iY, eX, eY: _df_anno(L, T, X[aaY], aY),
+    frozenset(("top",)):          lambda X, Y, R, T, L, C, B, M, aaY, aY, aiY, iY, eX, eY: _df_anno(C, B, X[aaY], aY),
+    frozenset(("bottom", "left")):lambda X, Y, R, T, L, C, B, M, aaY, aY, aiY, iY, eX, eY: _df_anno(R, B, X[aiY], iY),
+    frozenset(("bottom", "right")):lambda X, Y, R, T, L, C, B, M, aaY, aY, aiY, iY, eX, eY: _df_anno(L, B, X[aiY], iY),
+    frozenset(("bottom",)):       lambda X, Y, R, T, L, C, B, M, aaY, aY, aiY, iY, eX, eY: _df_anno(C, T, X[aiY], iY),
+    frozenset(("left",)):         lambda X, Y, R, T, L, C, B, M, aaY, aY, aiY, iY, eX, eY: _df_anno(R, M, eX, eY),
+    frozenset(("right",)):        lambda X, Y, R, T, L, C, B, M, aaY, aY, aiY, iY, eX, eY: _df_anno(L, M, eX, eY),
+}
+
+_HLINE_POSITION_TO_FUNC = {
+    frozenset(("top", "left")):   lambda X, Y, R, T, L, C, B, M, aaX, aX, aiX, iX, eX, eY: _df_anno(L, B, iX, Y[aiX]),
+    frozenset(("top", "right")):  lambda X, Y, R, T, L, C, B, M, aaX, aX, aiX, iX, eX, eY: _df_anno(R, B, aX, Y[aaX]),
+    frozenset(("top",)):          lambda X, Y, R, T, L, C, B, M, aaX, aX, aiX, iX, eX, eY: _df_anno(C, B, eX, eY),
+    frozenset(("bottom", "left")):lambda X, Y, R, T, L, C, B, M, aaX, aX, aiX, iX, eX, eY: _df_anno(L, T, iX, Y[aiX]),
+    frozenset(("bottom", "right")):lambda X, Y, R, T, L, C, B, M, aaX, aX, aiX, iX, eX, eY: _df_anno(R, T, aX, Y[aaX]),
+    frozenset(("bottom",)):       lambda X, Y, R, T, L, C, B, M, aaX, aX, aiX, iX, eX, eY: _df_anno(C, T, eX, eY),
+    frozenset(("left",)):         lambda X, Y, R, T, L, C, B, M, aaX, aX, aiX, iX, eX, eY: _df_anno(R, M, iX, Y[aiX]),
+    frozenset(("right",)):        lambda X, Y, R, T, L, C, B, M, aaX, aX, aiX, iX, eX, eY: _df_anno(L, M, aX, Y[aaX]),
+}
