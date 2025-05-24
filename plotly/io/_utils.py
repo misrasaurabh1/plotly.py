@@ -2,22 +2,22 @@ from typing import List
 
 import plotly
 import plotly.graph_objs as go
+from plotly.basedatatypes import BaseFigure as PlotlyBaseFigure
 from plotly.offline import get_plotlyjs_version
 
 
 def validate_coerce_fig_to_dict(fig, validate):
-    from plotly.basedatatypes import BaseFigure
-
-    if isinstance(fig, BaseFigure):
-        fig_dict = fig.to_dict()
+    # HOT: Avoid repetitive import by moving import to top
+    if isinstance(fig, PlotlyBaseFigure):
+        return fig.to_dict()
     elif isinstance(fig, dict):
         if validate:
-            # This will raise an exception if fig is not a valid plotly figure
-            fig_dict = plotly.graph_objs.Figure(fig).to_plotly_json()
+            # If validate, force creation of Figure via plotly.graph_objs
+            return plotly.graph_objs.Figure(fig).to_plotly_json()
         else:
-            fig_dict = fig
+            return fig
     elif hasattr(fig, "to_plotly_json"):
-        fig_dict = fig.to_plotly_json()
+        return fig.to_plotly_json()
     else:
         raise ValueError(
             """
@@ -26,7 +26,6 @@ The fig parameter must be a dict or Figure.
                 typ=type(fig), v=fig
             )
         )
-    return fig_dict
 
 
 def validate_coerce_output_type(output_type):
