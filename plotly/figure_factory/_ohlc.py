@@ -191,23 +191,14 @@ class _OHLC(object):
     """
     Refer to FigureFactory.create_ohlc_increase() for docstring.
     """
-
     def __init__(self, open, high, low, close, dates, **kwargs):
+        # Only store what we actually need for increasing sticks.
         self.open = open
         self.high = high
         self.low = low
         self.close = close
-        self.empty = [None] * len(open)
         self.dates = dates
-
-        self.all_x = []
-        self.all_y = []
-        self.increase_x = []
-        self.increase_y = []
-        self.decrease_x = []
-        self.decrease_y = []
-        self.get_all_xy()
-        self.separate_increase_decrease()
+        self._build_increase_flat_xy()
 
     def get_all_xy(self):
         """
@@ -270,13 +261,8 @@ class _OHLC(object):
             trace, flat_increase_y: y=values for the increasing trace and
             text_increase: hovertext for the increasing trace
         """
-        flat_increase_x = utils.flatten(self.increase_x)
-        flat_increase_y = utils.flatten(self.increase_y)
-        text_increase = ("Open", "Open", "High", "Low", "Close", "Close", "") * (
-            len(self.increase_x)
-        )
-
-        return flat_increase_x, flat_increase_y, text_increase
+        text_increase = ("Open", "Open", "High", "Low", "Close", "Close", "") * self.increase_count
+        return self.flat_increase_x, self.flat_increase_y, text_increase
 
     def get_decrease(self):
         """
@@ -293,3 +279,35 @@ class _OHLC(object):
         )
 
         return flat_decrease_x, flat_decrease_y, text_decrease
+
+    def _build_increase_flat_xy(self):
+        """ 
+        Efficiently build flat increase_x and increase_y directly, skipping all intermediates.
+        """
+
+        open, high, low, close, dates = self.open, self.high, self.low, self.close, self.dates
+        n = len(open)
+        flat_x, flat_y = [], []
+
+        if dates is not None:
+            # Calculate date_dif_min only once.
+            date_dif_list = [dates[i+1] - dates[i] for i in range(n-1)]
+            date_dif_min = min(date_dif_list) / 5 if date_dif_list else 0.04
+            for i in range(n):
+                # Only process increasing bars
+                o, h, l, c = open[i], high[i], low[i], close[i]
+                if c is not None and c > o:
+                    x = dates[i]
+                    flat_x.extend([x - date_dif_min, x, x, x, x, x + date_dif_min, None])
+                    flat_y.extend([o, o, h, l, c, c, None])
+        else:
+            for i in range(n):
+                o, h, l, c = open[i], high[i], low[i], close[i]
+                if c is not None and c > o:
+                    x = i
+                    flat_x.extend([x - 0.2, x, x, x, x, x + 0.2, None])
+                    flat_y.extend([o, o, h, l, c, c, None])
+        self.flat_increase_x = flat_x
+        self.flat_increase_y = flat_y
+        # Count how many bars (each bar is 7 values)
+        self.increase_count = len(flat_x) // 7
