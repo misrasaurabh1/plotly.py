@@ -33,9 +33,17 @@ SubplotRef = collections.namedtuple(
 
 
 def _get_initial_max_subplot_ids():
-    max_subplot_ids = {subplot_type: 0 for subplot_type in _single_subplot_types}
-    max_subplot_ids["xaxis"] = 0
-    max_subplot_ids["yaxis"] = 0
+    # Use direct dict literal construction for speedup over comprehension
+    max_subplot_ids = {
+        "scene": 0,
+        "geo": 0,
+        "polar": 0,
+        "ternary": 0,
+        "map": 0,
+        "mapbox": 0,
+        "xaxis": 0,
+        "yaxis": 0,
+    }
     return max_subplot_ids
 
 
@@ -969,25 +977,33 @@ def _init_subplot_xy(layout, secondary_y, x_domain, y_domain, max_subplot_ids=No
     if max_subplot_ids is None:
         max_subplot_ids = _get_initial_max_subplot_ids()
 
-    # Get axis label and anchor
-    x_cnt = max_subplot_ids["xaxis"] + 1
-    y_cnt = max_subplot_ids["yaxis"] + 1
+    # Use local variables for slightly reduced dict lookup overhead
+    xaxis_cnt = max_subplot_ids["xaxis"] + 1
+    yaxis_cnt = max_subplot_ids["yaxis"] + 1
 
-    # Compute x/y labels (the values of trace.xaxis/trace.yaxis
-    x_label = "x{cnt}".format(cnt=x_cnt if x_cnt > 1 else "")
-    y_label = "y{cnt}".format(cnt=y_cnt if y_cnt > 1 else "")
+    # Use fast string concatenation
+    if xaxis_cnt == 1:
+        x_label = "x"
+        xaxis_name = "xaxis"
+    else:
+        str_cnt = str(xaxis_cnt)
+        x_label = "x" + str_cnt
+        xaxis_name = "xaxis" + str_cnt
 
-    # Anchor x and y axes to each other
-    x_anchor, y_anchor = y_label, x_label
+    if yaxis_cnt == 1:
+        y_label = "y"
+        yaxis_name = "yaxis"
+    else:
+        str_cnt = str(yaxis_cnt)
+        y_label = "y" + str_cnt
+        yaxis_name = "yaxis" + str_cnt
 
-    # Build layout.xaxis/layout.yaxis containers
-    xaxis_name = "xaxis{cnt}".format(cnt=x_cnt if x_cnt > 1 else "")
-    yaxis_name = "yaxis{cnt}".format(cnt=y_cnt if y_cnt > 1 else "")
-    x_axis = {"domain": x_domain, "anchor": x_anchor}
-    y_axis = {"domain": y_domain, "anchor": y_anchor}
+    x_anchor = y_label
+    y_anchor = x_label
 
-    layout[xaxis_name] = x_axis
-    layout[yaxis_name] = y_axis
+    # Avoid allocating unnecessary dicts
+    layout[xaxis_name] = {"domain": x_domain, "anchor": x_anchor}
+    layout[yaxis_name] = {"domain": y_domain, "anchor": y_anchor}
 
     subplot_refs = [
         SubplotRef(
@@ -998,26 +1014,30 @@ def _init_subplot_xy(layout, secondary_y, x_domain, y_domain, max_subplot_ids=No
     ]
 
     if secondary_y:
-        y_cnt += 1
-        secondary_yaxis_name = "yaxis{cnt}".format(cnt=y_cnt if y_cnt > 1 else "")
-        secondary_y_label = "y{cnt}".format(cnt=y_cnt)
+        yaxis_cnt2 = yaxis_cnt + 1
 
-        # Add secondary y-axis to subplot reference
+        # Always secondary axis must have a number, so don't check ==1
+        yaxis_name2 = "yaxis" + str(yaxis_cnt2)
+        y_label2 = "y" + str(yaxis_cnt2)
+
         subplot_refs.append(
             SubplotRef(
                 subplot_type="xy",
-                layout_keys=(xaxis_name, secondary_yaxis_name),
-                trace_kwargs={"xaxis": x_label, "yaxis": secondary_y_label},
+                layout_keys=(xaxis_name, yaxis_name2),
+                trace_kwargs={"xaxis": x_label, "yaxis": y_label2},
             )
         )
 
-        # Add secondary y axis to layout
-        secondary_y_axis = {"anchor": y_anchor, "overlaying": y_label, "side": "right"}
-        layout[secondary_yaxis_name] = secondary_y_axis
+        layout[yaxis_name2] = {
+            "anchor": y_anchor,
+            "overlaying": y_label,
+            "side": "right",
+        }
+        yaxis_cnt = yaxis_cnt2
 
-    # increment max_subplot_ids
-    max_subplot_ids["xaxis"] = x_cnt
-    max_subplot_ids["yaxis"] = y_cnt
+    # Update counters after any changes
+    max_subplot_ids["xaxis"] = xaxis_cnt
+    max_subplot_ids["yaxis"] = yaxis_cnt
 
     return tuple(subplot_refs)
 
