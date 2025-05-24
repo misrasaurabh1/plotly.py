@@ -2,10 +2,10 @@ from plotly.utils import _list_repr_elided
 
 
 class InputDeviceState:
+
     def __init__(
         self, ctrl=None, alt=None, shift=None, meta=None, button=None, buttons=None, **_
     ):
-
         self._ctrl = ctrl
         self._alt = alt
         self._meta = meta
@@ -14,20 +14,14 @@ class InputDeviceState:
         self._buttons = buttons
 
     def __repr__(self):
-        return """\
-InputDeviceState(
-    ctrl={ctrl},
-    alt={alt},
-    shift={shift},
-    meta={meta},
-    button={button},
-    buttons={buttons})""".format(
-            ctrl=repr(self.ctrl),
-            alt=repr(self.alt),
-            meta=repr(self.meta),
-            shift=repr(self.shift),
-            button=repr(self.button),
-            buttons=repr(self.buttons),
+        return (
+            'InputDeviceState(\n'
+            f'    ctrl={self._ctrl!r},\n'
+            f'    alt={self._alt!r},\n'
+            f'    shift={self._shift!r},\n'
+            f'    meta={self._meta!r},\n'
+            f'    button={self._button!r},\n'
+            f'    buttons={self._buttons!r})'
         )
 
     @property
