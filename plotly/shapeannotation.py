@@ -21,7 +21,8 @@ def _df_anno(xanchor, yanchor, x, y):
 
 
 def _add_inside_to_position(pos):
-    if not ("inside" in pos or "outside" in pos):
+    # Expecting pos as set, do nothing if 'inside' or 'outside' present
+    if "inside" not in pos and "outside" not in pos:
         pos.add("inside")
     return pos
 
@@ -29,11 +30,16 @@ def _add_inside_to_position(pos):
 def _prepare_position(position, prepend_inside=False):
     if position is None:
         position = "top right"
-    pos_str = position
-    position = set(position.split(" "))
-    if prepend_inside:
-        position = _add_inside_to_position(position)
-    return position, pos_str
+        pos_str = position
+        pos_set = {"top", "right"}
+    else:
+        pos_str = position
+        if prepend_inside:
+            pos_set = set(pos_str.split(" "))
+            pos_set = _add_inside_to_position(pos_set)
+        else:
+            pos_set = set(pos_str.split(" "))
+    return pos_set, pos_str
 
 
 def annotation_params_for_line(shape_type, shape_args, position):
