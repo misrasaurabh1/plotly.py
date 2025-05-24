@@ -498,7 +498,6 @@ class IFrameRenderer(MimetypeRenderer):
 
     mime type: 'text/html'
     """
-
     def __init__(
         self,
         config=None,
@@ -508,7 +507,6 @@ class IFrameRenderer(MimetypeRenderer):
         include_plotlyjs=True,
         html_directory="iframe_figures",
     ):
-
         self.config = config
         self.auto_play = auto_play
         self.post_script = post_script
@@ -576,14 +574,31 @@ class IFrameRenderer(MimetypeRenderer):
         return {"text/html": iframe_html}
 
     def build_filename(self):
-        ip = IPython.get_ipython() if IPython else None
-        try:
-            cell_number = list(ip.history_manager.get_tail(1))[0][1] + 1 if ip else 0
-        except Exception:
-            cell_number = 0
-        return "{dirname}/figure_{cell_number}.html".format(
-            dirname=self.html_directory, cell_number=cell_number
-        )
+        # Try to get the current cell number efficiently without list conversion
+        cell_number = 0
+        if IPython:
+            ip = IPython.get_ipython()
+            if ip:
+                try:
+                    # Use session and input_hist_raw_lengths to estimate cell number
+                    input_hist = getattr(ip.history_manager, 'input_hist_parsed', None)
+                    if input_hist is not None:
+                        cell_number = len(input_hist)
+                    else:
+                        # Fallback to use input_hist_raw_lengths if available
+                        ih_raw_lengths = getattr(ip.history_manager, 'input_hist_raw_lengths', None)
+                        if ih_raw_lengths:
+                            cell_number = sum(ih_raw_lengths)
+                        else:
+                            # As last resort, fall back to slow get_tail
+                            # This avoids large list alloc for just one item
+                            tail = ip.history_manager.get_tail(1)
+                            if tail:
+                                cell_number = tail[0][1] + 1
+                except Exception:
+                    cell_number = 0
+        # Use a fast f-string for filename construction
+        return f"{self.html_directory}/figure_{cell_number}.html"
 
     def build_url(self, filename):
         return filename
