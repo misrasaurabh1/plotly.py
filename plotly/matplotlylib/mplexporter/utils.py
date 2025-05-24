@@ -21,20 +21,21 @@ from matplotlib import ticker
 
 def export_color(color):
     """Convert matplotlib color code to hex color or RGBA color"""
-    if color is None or colorConverter.to_rgba(color)[3] == 0:
+    if color is None:
         return "none"
-    elif colorConverter.to_rgba(color)[3] == 1:
-        rgb = colorConverter.to_rgb(color)
-        return "#{0:02X}{1:02X}{2:02X}".format(*(int(255 * c) for c in rgb))
+    c_rgba = colorConverter.to_rgba(color)
+    alpha = c_rgba[3]
+    if alpha == 0:
+        return "none"
+    elif alpha == 1:
+        r, g, b = (int(255 * c_rgba[0]), int(255 * c_rgba[1]), int(255 * c_rgba[2]))
+        return f"#{r:02X}{g:02X}{b:02X}"
     else:
-        c = colorConverter.to_rgba(color)
-        return (
-            "rgba("
-            + ", ".join(str(int(np.round(val * 255))) for val in c[:3])
-            + ", "
-            + str(c[3])
-            + ")"
-        )
+        r = int(round(255 * c_rgba[0]))
+        g = int(round(255 * c_rgba[1]))
+        b = int(round(255 * c_rgba[2]))
+        # Keeping alpha in string form as before (not multiplied by 255)
+        return f"rgba({r}, {g}, {b}, {alpha})"
 
 
 def _many_to_one(input_dict):
