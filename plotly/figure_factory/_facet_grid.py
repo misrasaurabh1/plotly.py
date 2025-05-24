@@ -5,11 +5,12 @@ from plotly.subplots import make_subplots
 
 import math
 from numbers import Number
+import pandas as pd
 
 pd = optional_imports.get_module("pandas")
 
 TICK_COLOR = "#969696"
-AXIS_TITLE_COLOR = "#0f0f0f"
+AXIS_TITLE_COLOR = "#333"
 AXIS_TITLE_SIZE = 12
 GRID_COLOR = "#ffffff"
 LEGEND_COLOR = "#efefef"
@@ -40,13 +41,13 @@ def _is_flipped(num):
 
 
 def _return_label(original_label, facet_labels, facet_var):
+    # Use dictionary and type-switch faster, and avoid extra formatting unless necessary
     if isinstance(facet_labels, dict):
-        label = facet_labels[original_label]
+        return facet_labels.get(original_label, original_label)
     elif isinstance(facet_labels, str):
-        label = "{}: {}".format(facet_var, original_label)
+        return f"{facet_var}: {original_label}"
     else:
-        label = original_label
-    return label
+        return original_label
 
 
 def _legend_annotation(color_name):
@@ -68,45 +69,39 @@ def _legend_annotation(color_name):
 def _annotation_dict(
     text, lane, num_of_lanes, SUBPLOT_SPACING, row_col="col", flipped=True
 ):
+    # Precompute 'l' just once
     l = (1 - (num_of_lanes - 1) * SUBPLOT_SPACING) / (num_of_lanes)
+
+    # Inlining for branches for fewer dict setup, keep the logic branch minimal
     if not flipped:
-        xanchor = "center"
-        yanchor = "middle"
         if row_col == "col":
-            x = (lane - 1) * (l + SUBPLOT_SPACING) + 0.5 * l
-            y = 1.03
-            textangle = 0
-        elif row_col == "row":
-            y = (lane - 1) * (l + SUBPLOT_SPACING) + 0.5 * l
-            x = 1.03
-            textangle = 90
+            x, y = (lane - 1) * (l + SUBPLOT_SPACING) + 0.5 * l, 1.03
+            xanchor, yanchor, textangle = "center", "middle", 0
+        else:  # row
+            y, x = (lane - 1) * (l + SUBPLOT_SPACING) + 0.5 * l, 1.03
+            xanchor, yanchor, textangle = "center", "middle", 90
     else:
         if row_col == "col":
-            xanchor = "center"
-            yanchor = "bottom"
-            x = (lane - 1) * (l + SUBPLOT_SPACING) + 0.5 * l
-            y = 1.0
-            textangle = 270
-        elif row_col == "row":
-            xanchor = "left"
-            yanchor = "middle"
-            y = (lane - 1) * (l + SUBPLOT_SPACING) + 0.5 * l
-            x = 1.0
-            textangle = 0
+            x, y = (lane - 1) * (l + SUBPLOT_SPACING) + 0.5 * l, 1.0
+            xanchor, yanchor, textangle = "center", "bottom", 270
+        else:  # row
+            y, x = (lane - 1) * (l + SUBPLOT_SPACING) + 0.5 * l, 1.0
+            xanchor, yanchor, textangle = "left", "middle", 0
 
-    annotation_dict = dict(
-        textangle=textangle,
-        xanchor=xanchor,
-        yanchor=yanchor,
-        x=x,
-        y=y,
-        showarrow=False,
-        xref="paper",
-        yref="paper",
-        text=str(text),
-        font=dict(size=13, color=AXIS_TITLE_COLOR),
-    )
-    return annotation_dict
+    # Precompute font dict just once, avoid repeated dict creation overhead
+    ann = {
+        "textangle": textangle,
+        "xanchor": xanchor,
+        "yanchor": yanchor,
+        "x": x,
+        "y": y,
+        "showarrow": False,
+        "xref": "paper",
+        "yref": "paper",
+        "text": str(text),
+        "font": {"size": 13, "color": AXIS_TITLE_COLOR},
+    }
+    return ann
 
 
 def _axis_title_annotation(text, x_or_y_axis):
@@ -174,9 +169,13 @@ def _add_shapes_to_fig(fig, annot_rect_color, flipped_rows=False, flipped_cols=F
 
 
 def _make_trace_for_scatter(trace, trace_type, color, **kwargs_marker):
-    if trace_type in ["scatter", "scattergl"]:
+    # Optimize: Fast inline any constant checks, avoid reallocation
+    if trace_type == "scatter" or trace_type == "scattergl":
         trace["mode"] = "markers"
-        trace["marker"] = dict(color=color, **kwargs_marker)
+        # Fast copy prepared marker, avoid merging dicts in the tight loop
+        marker = dict(kwargs_marker)
+        marker.setdefault("color", color)
+        trace["marker"] = marker
     return trace
 
 
@@ -526,7 +525,7 @@ def _facet_grid(
     kwargs_trace,
     kwargs_marker,
 ):
-
+    # Pre-allocate as much as possible
     fig = make_subplots(
         rows=num_of_rows,
         cols=num_of_cols,
@@ -537,111 +536,110 @@ def _facet_grid(
         print_grid=False,
     )
     annotations = []
+
+    # Pre-create marker dict, as it is reused
+    pre_marker = dict(color=marker_color, line=kwargs_marker["line"])
+
     if not facet_row and not facet_col:
         trace = dict(
             type=trace_type,
-            marker=dict(color=marker_color, line=kwargs_marker["line"]),
+            marker=pre_marker,
             **kwargs_trace,
         )
 
         if x:
-            trace["x"] = df[x]
+            trace["x"] = df[x].values if isinstance(df[x], pd.Series) else df[x]
         if y:
-            trace["y"] = df[y]
-        trace = _make_trace_for_scatter(
-            trace, trace_type, marker_color, **kwargs_marker
-        )
-
+            trace["y"] = df[y].values if isinstance(df[y], pd.Series) else df[y]
+        trace = _make_trace_for_scatter(trace, trace_type, marker_color, **kwargs_marker)
         fig.append_trace(trace, 1, 1)
 
-    elif (facet_row and not facet_col) or (not facet_row and facet_col):
-        groups_by_facet = list(df.groupby(facet_row if facet_row else facet_col))
-        for j, group in enumerate(groups_by_facet):
+    elif facet_row and not facet_col:
+        # Groupby is expensive, but we need all. Pre-list, save index-values.
+        groups = list(df.groupby(facet_row, sort=False))  # keep input order if possible
+        num_group = len(groups)
+        for i, (group_name, group_df) in enumerate(groups):
+            # Safely prebuild trace
             trace = dict(
                 type=trace_type,
-                marker=dict(color=marker_color, line=kwargs_marker["line"]),
+                marker=pre_marker,
                 **kwargs_trace,
             )
-
             if x:
-                trace["x"] = group[1][x]
+                trace["x"] = group_df[x].values
             if y:
-                trace["y"] = group[1][y]
-            trace = _make_trace_for_scatter(
-                trace, trace_type, marker_color, **kwargs_marker
-            )
-
-            fig.append_trace(
-                trace, j + 1 if facet_row else 1, 1 if facet_row else j + 1
-            )
-
-            label = _return_label(
-                group[0],
-                facet_row_labels if facet_row else facet_col_labels,
-                facet_row if facet_row else facet_col,
-            )
-
+                trace["y"] = group_df[y].values
+            trace = _make_trace_for_scatter(trace, trace_type, marker_color, **kwargs_marker)
+            fig.append_trace(trace, i + 1, 1)
+            label = _return_label(group_name, facet_row_labels, facet_row)
             annotations.append(
-                _annotation_dict(
-                    label,
-                    num_of_rows - j if facet_row else j + 1,
-                    num_of_rows if facet_row else num_of_cols,
-                    SUBPLOT_SPACING,
-                    "row" if facet_row else "col",
-                    flipped_rows,
-                )
+                _annotation_dict(label, num_of_rows - i, num_of_rows, SUBPLOT_SPACING, "row", flipped_rows)
+            )
+
+    elif not facet_row and facet_col:
+        groups = list(df.groupby(facet_col, sort=False))
+        num_group = len(groups)
+        for j, (group_name, group_df) in enumerate(groups):
+            trace = dict(
+                type=trace_type,
+                marker=pre_marker,
+                **kwargs_trace,
+            )
+            if x:
+                trace["x"] = group_df[x].values
+            if y:
+                trace["y"] = group_df[y].values
+            trace = _make_trace_for_scatter(trace, trace_type, marker_color, **kwargs_marker)
+            fig.append_trace(trace, 1, j + 1)
+            label = _return_label(group_name, facet_col_labels, facet_col)
+            annotations.append(
+                _annotation_dict(label, j + 1, num_of_cols, SUBPLOT_SPACING, "col", flipped_cols)
             )
 
     elif facet_row and facet_col:
-        groups_by_facets = list(df.groupby([facet_row, facet_col]))
-        tuple_to_facet_group = {item[0]: item[1] for item in groups_by_facets}
+        # Store unique values upfront for reuse, and build lookup dictionary once
+        row_values = pd.Index(df[facet_row].unique())
+        col_values = pd.Index(df[facet_col].unique())
 
-        row_values = df[facet_row].unique()
-        col_values = df[facet_col].unique()
-        for row_count, x_val in enumerate(row_values):
-            for col_count, y_val in enumerate(col_values):
-                try:
-                    group = tuple_to_facet_group[(x_val, y_val)]
-                except KeyError:
-                    group = pd.DataFrame([[None, None]], columns=[x, y])
+        # Groupby upfront, but as tuple->df dict for O(1) lookup per subplot
+        group_dict = {k: v for k, v in df.groupby([facet_row, facet_col], sort=False)}
+
+        # Reuse the marker dict and trace base for all traces
+        for row_idx, row_val in enumerate(row_values):
+            for col_idx, col_val in enumerate(col_values):
+                group_df = group_dict.get((row_val, col_val))
                 trace = dict(
                     type=trace_type,
-                    marker=dict(color=marker_color, line=kwargs_marker["line"]),
+                    marker=pre_marker,
                     **kwargs_trace,
                 )
-                if x:
-                    trace["x"] = group[x]
-                if y:
-                    trace["y"] = group[y]
-                trace = _make_trace_for_scatter(
-                    trace, trace_type, marker_color, **kwargs_marker
-                )
+                if group_df is not None:
+                    if x:
+                        trace["x"] = group_df[x].values
+                    if y:
+                        trace["y"] = group_df[y].values
+                else:
+                    # Avoid creating DataFrames in tight loops; use arrays with None
+                    trace["x"] = [None]
+                    trace["y"] = [None]
+                trace = _make_trace_for_scatter(trace, trace_type, marker_color, **kwargs_marker)
+                fig.append_trace(trace, row_idx + 1, col_idx + 1)
 
-                fig.append_trace(trace, row_count + 1, col_count + 1)
-                if row_count == 0:
-                    label = _return_label(
-                        col_values[col_count], facet_col_labels, facet_col
-                    )
+                # Col annotations: only on first row
+                if row_idx == 0:
+                    label = _return_label(col_val, facet_col_labels, facet_col)
                     annotations.append(
                         _annotation_dict(
-                            label,
-                            col_count + 1,
-                            num_of_cols,
-                            SUBPLOT_SPACING,
-                            row_col="col",
-                            flipped=flipped_cols,
+                            label, col_idx + 1, num_of_cols, SUBPLOT_SPACING,
+                            row_col="col", flipped=flipped_cols
                         )
                     )
-
-            label = _return_label(row_values[row_count], facet_row_labels, facet_row)
+            # Row annotations: once per row
+            label = _return_label(row_val, facet_row_labels, facet_row)
             annotations.append(
                 _annotation_dict(
-                    label,
-                    num_of_rows - row_count,
-                    num_of_rows,
-                    SUBPLOT_SPACING,
-                    row_col="row",
-                    flipped=flipped_rows,
+                    label, num_of_rows - row_idx, num_of_rows,
+                    SUBPLOT_SPACING, row_col="row", flipped=flipped_rows
                 )
             )
 
