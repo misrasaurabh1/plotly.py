@@ -13,7 +13,11 @@ from .. import utils
 class Renderer(object):
     @staticmethod
     def ax_zoomable(ax):
-        return bool(ax and ax.get_navigate())
+        # Return False if ax is None or falsy
+        if not ax:
+            return False
+        # get_navigate() is already a boolean
+        return ax.get_navigate()
 
     @staticmethod
     def ax_has_xgrid(ax):
