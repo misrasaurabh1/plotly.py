@@ -84,7 +84,6 @@ def convert_dash(mpl_dash):
 
 
 def convert_path(path):
-    verts = path[0]  # may use this later
     code = tuple(path[1])
     if code in PATH_MAP:
         return PATH_MAP[code]
@@ -289,14 +288,11 @@ def get_bar_gap(bar_starts, bar_ends, tol=1e-10):
 
 
 def convert_rgba_array(color_list):
-    clean_color_list = list()
-    for c in color_list:
-        clean_color_list += [
-            dict(r=int(c[0] * 255), g=int(c[1] * 255), b=int(c[2] * 255), a=c[3])
-        ]
-    plotly_colors = list()
-    for rgba in clean_color_list:
-        plotly_colors += ["rgba({r},{g},{b},{a})".format(**rgba)]
+    # Use a single list comprehension to both process and format the color list
+    plotly_colors = [
+        f"rgba({int(c[0] * 255)},{int(c[1] * 255)},{int(c[2] * 255)},{c[3]})"
+        for c in color_list
+    ]
     if len(plotly_colors) == 1:
         return plotly_colors[0]
     else:
@@ -493,7 +489,7 @@ def prep_ticks(ax, index, ax_type, props):
         else:
             axis_dict = dict(range=None, type="linear")
             warnings.warn(
-                "Converted non-base10 {0}-axis log scale to 'linear'" "".format(ax_type)
+                "Converted non-base10 {0}-axis log scale to 'linear'".format(ax_type)
             )
     else:
         return dict()
@@ -553,7 +549,7 @@ def mpl_dates_to_datestrings(dates, mpl_formatter):
         try:
             dates = matplotlib.dates.epoch2num([date * 24 * 60 * 60 for date in dates])
             dates = matplotlib.dates.num2date(dates)
-        except:
+        except Exception:
             return _dates
 
     # the rest of mpl dates are in floating point days since
@@ -562,7 +558,7 @@ def mpl_dates_to_datestrings(dates, mpl_formatter):
     else:
         try:
             dates = matplotlib.dates.num2date(dates)
-        except:
+        except Exception:
             return _dates
 
     time_stings = [
